@@ -8,6 +8,7 @@ The web app (`D:\DAMMYVAULT`, live at myvault-damfizz.web.app) is the reference 
 |---|---|
 | 1. Toolchain | ✅ Done. JBR 21 from Android Studio, SDK platform 36, build-tools 35/36.1, Gradle 8.14.3 wrapper |
 | 2. Core crypto + vault format (`:core`, pure Kotlin) | ✅ Done. 18 Kotlin tests and 8 web-side tests pass |
+| 2b. Secret Key format v2 (docs/SECRET-KEY.md) | ✅ Format support on web (branch `secret-key-format`) + `:core`, no UI yet |
 | 3. Local storage, unlock, biometrics | ⏳ Planned (below) |
 | 4. Compose UI with Liquid Glass | ⏳ Planned |
 | 5. Drive sync and Autofill | ⏳ Planned |
@@ -54,7 +55,7 @@ The `:core` module (`core/src/main/kotlin/com/damfizz/myvault/core`) has no Andr
    `verify-kotlin.fixture.ts` checks it with the web modules. Everything has to unlock and decrypt identically, and `futureField` has to survive.
 3. **Negative control.** When the `rev` of one record was tampered with, the web verifier failed as expected, because the AAD binds id/rev/vtag.
 
-Run everything with: `bash tools/compat-check.sh`
+Run everything with: `bash tools/compat-check.sh`. Until `secret-key-format` is merged into the web's `master`, use `MYVAULT_WEB_ROOT=../DAMMYVAULT-secretkey bash tools/compat-check.sh`.
 
 ## Stage 3: local storage, unlock, biometrics
 

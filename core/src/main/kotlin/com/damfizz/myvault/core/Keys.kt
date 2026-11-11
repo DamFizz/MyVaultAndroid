@@ -19,6 +19,8 @@ object Aad {
 
 object WrapPurpose {
     const val PASSWORD = "password"
+    /** master password + Secret Key (format v2) */
+    const val PASSWORD_SK = "password-sk"
     const val RECOVERY = "recovery"
     fun device(id: String) = "device:$id"
 }

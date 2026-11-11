@@ -36,6 +36,8 @@ class VaultAccess(
     private val store: VaultStore,
     private val clock: Clock = Clock.SYSTEM,
     private val deviceName: String = Devices.DEFAULT_NAME,
+    /** Android passes a Keystore-sealed implementation; tests use the plain default. */
+    private val secretKeys: DeviceSecretKeys = StoreDeviceSecretKeys(store),
 ) {
     private fun device() = Devices.get(store, deviceName)
 
@@ -250,21 +252,80 @@ class VaultAccess(
 
     private fun requireHeader(): VaultHeader = store.getHeader() ?: throw NoVaultError()
 
-    /** Unwrap the raw vault key with the master password. Caller owns (and must wipe) the result. */
-    private fun unwrapWithPassword(header: VaultHeader, password: String): ByteArray {
+    // ------------------------------------------------------------------ Secret Key (format v2)
+
+    private class ResolvedKek(val kek: AesKey, val purpose: String, val supplied: ByteArray?)
+
+    /** The device's Secret Key for this header, or null (a stale key from before a rotation is discarded). */
+    private fun deviceSecretKey(header: VaultHeader): ByteArray? {
+        val info = header.secretKey ?: return null
+        val stored = secretKeys.load(header.vaultId) ?: return null
+        if (stored.id != info.id) {
+            secretKeys.forget(header.vaultId)
+            return null
+        }
+        return stored.raw
+    }
+
+    fun hasSecretKeyOnDevice(header: VaultHeader = requireHeader()): Boolean = header.secretKey == null || deviceSecretKey(header) != null
+
+    fun rememberSecretKey(vaultId: String, raw: ByteArray) = secretKeys.save(vaultId, SecretKeys.id(raw, vaultId), raw)
+
+    fun forgetSecretKey(vaultId: String) = secretKeys.forget(vaultId)
+
+    /** Pick the KEK for `header.passwordWrap`: password only (v1) or password + Secret Key (v2). */
+    private fun kekForHeader(header: VaultHeader, password: String, src: SecretKeySource): ResolvedKek {
+        val info = header.secretKey ?: return ResolvedKek(Keys.passwordKek(password, header.kdf, header.vaultId), WrapPurpose.PASSWORD, null)
+        var supplied: ByteArray? = null
+        val sk: ByteArray? = when {
+            src.secretKey != null -> {
+                val parsed = SecretKeys.parse(src.secretKey)
+                if (parsed.vaultId != null && parsed.vaultId != header.vaultId) throw WrongSecretKeyError()
+                if (SecretKeys.id(parsed.raw, header.vaultId) != info.id) throw WrongSecretKeyError()
+                supplied = parsed.raw
+                parsed.raw
+            }
+            src.stored != null -> SecretKeys.fromStored(src.stored).also {
+                if (SecretKeys.id(it, header.vaultId) != info.id) throw WrongSecretKeyError()
+            }
+            else -> deviceSecretKey(header)
+        }
+        if (sk == null) throw SecretKeyRequiredError(header.vaultId)
+        return ResolvedKek(SecretKeys.passwordSecretKek(password, header.kdf, header.vaultId, sk), WrapPurpose.PASSWORD_SK, supplied)
+    }
+
+    /** New master-password wrap for [header], keeping the vault's current mode (v1 or Secret Key). */
+    private fun passwordWrapFor(header: VaultHeader, security: SecurityConfig, password: String, vk: ByteArray, kdf: KdfParams = Crypto.newKdfParams()): Pair<KdfParams, Sealed> {
+        if (header.secretKey == null) {
+            return kdf to Keys.wrapVaultKey(Keys.passwordKek(password, kdf, header.vaultId), vk, header.vaultId, WrapPurpose.PASSWORD)
+        }
+        val stored = security.secretKey ?: throw IllegalStateException("Vault is corrupted: the Secret Key copy is missing")
+        val kek = SecretKeys.passwordSecretKek(password, kdf, header.vaultId, SecretKeys.fromStored(stored))
+        return kdf to Keys.wrapVaultKey(kek, vk, header.vaultId, WrapPurpose.PASSWORD_SK)
+    }
+
+    /**
+     * Unwrap the raw vault key with the master password (and the Secret Key for format-v2 vaults).
+     * Caller owns (and must wipe) the result.
+     */
+    private fun unwrapWithPassword(header: VaultHeader, password: String, src: SecretKeySource = SecretKeySource()): ByteArray {
         Throttle.assertNotThrottled(store, clock.now())
-        val kek = Keys.passwordKek(password, header.kdf, header.vaultId)
-        try {
-            return Keys.unwrapVaultKey(kek, header.passwordWrap, header.vaultId, WrapPurpose.PASSWORD)
+        val r = kekForHeader(header, password, src)
+        val vk = try {
+            Keys.unwrapVaultKey(r.kek, header.passwordWrap, header.vaultId, r.purpose)
         } catch (e: DecryptionError) {
             Throttle.recordFailure(store, clock.now())
             throw WrongPasswordError()
         }
+        // A Secret Key typed by the user is kept only once the master password proved correct.
+        if (r.supplied != null && src.rememberSecretKey) rememberSecretKey(header.vaultId, r.supplied)
+        return vk
     }
 
-    fun unlockWithPassword(password: String): UnlockStep {
+    /** For a format-v2 vault the Secret Key comes from this device or from [src] (typed / scanned). */
+    fun unlockWithPassword(password: String, src: SecretKeySource = SecretKeySource()): UnlockStep {
         val header = requireHeader()
-        return continueUnlock(unwrapWithPassword(header, password), header)
+        return continueUnlock(unwrapWithPassword(header, password, src), header)
     }
 
     /** Unlock with a vault key unwrapped by another primary method (e.g. biometric Keystore wrap). */
@@ -274,7 +335,7 @@ class VaultAccess(
      * Forgotten master password: the recovery key unwraps the vault key and a new master password is
      * set. The Authenticator is still enforced, even on a trusted device.
      */
-    fun unlockWithRecoveryKey(recoveryKey: String, newPassword: String): UnlockStep {
+    fun unlockWithRecoveryKey(recoveryKey: String, newPassword: String, rememberSecretKey: Boolean = true): UnlockStep {
         Throttle.assertNotThrottled(store, clock.now())
         val header = requireHeader()
         val recoveryWrap = header.recoveryWrap ?: throw IllegalStateException("No recovery key was set up for this vault")
@@ -293,15 +354,16 @@ class VaultAccess(
             Encoding.wipe(raw)
         }
         return continueUnlock(vk, header, { key, h ->
-            val kdf = Crypto.newKdfParams()
-            val kek = Keys.passwordKek(newPassword, kdf, h.vaultId)
             val keys = Keys.deriveVaultKeys(key, h.vaultId)
             val sec = decryptSecurity(keys, h).copy(passwordChangedAt = clock.now())
+            // Secret Key vaults: the key is recovered from inside the vault and kept on this device.
+            val (kdf, wrap) = passwordWrapFor(h, sec, newPassword, key)
+            if (h.secretKey != null && sec.secretKey != null && rememberSecretKey) rememberSecretKey(h.vaultId, SecretKeys.fromStored(sec.secretKey))
             val rev = h.rev + 1
             val vtag = Encoding.randomId()
             val next = h.copy(
                 kdf = kdf,
-                passwordWrap = Keys.wrapVaultKey(kek, key, h.vaultId, WrapPurpose.PASSWORD),
+                passwordWrap = wrap,
                 rev = rev,
                 vtag = vtag,
                 updatedAt = clock.now(),
@@ -316,7 +378,7 @@ class VaultAccess(
 
     /** Verify the master password; [fn] receives the raw vault key, which is wiped afterwards. */
     fun <T> withMasterPassword(session: VaultSession, password: String, fn: (ByteArray) -> T): T {
-        val vk = unwrapWithPassword(session.header, password)
+        val vk = unwrapWithPassword(session.header, password, SecretKeySource(stored = session.security.secretKey))
         try {
             Throttle.recordSuccess(store)
             return fn(vk)
@@ -351,9 +413,7 @@ class VaultAccess(
 
     fun changeMasterPassword(session: VaultSession, currentPassword: String, newPassword: String) {
         withMasterPassword(session, currentPassword) { vk ->
-            val kdf = Crypto.newKdfParams()
-            val kek = Keys.passwordKek(newPassword, kdf, session.vaultId)
-            val wrap = Keys.wrapVaultKey(kek, vk, session.vaultId, WrapPurpose.PASSWORD)
+            val (kdf, wrap) = passwordWrapFor(session.header, session.security, newPassword, vk)
             session.commitHeader { d ->
                 d.header = d.header.copy(kdf = kdf, passwordWrap = wrap)
                 d.security = d.security.copy(passwordChangedAt = clock.now())
@@ -405,6 +465,42 @@ class VaultAccess(
         d.header = d.header.copy(recoveryWrap = null)
         d.security = d.security.copy(recoveryKeyCreatedAt = null)
     }
+
+    /**
+     * Turn on (or rotate) the Secret Key. [secretKey] is the display form the user has just saved in
+     * their Emergency Kit. Requires the master password and an existing recovery key; the UI must
+     * verify the second factor first. Other devices ask for the Secret Key at their next unlock.
+     */
+    fun enableSecretKey(session: VaultSession, password: String, secretKey: String, rememberOnDevice: Boolean = true) {
+        if (session.header.recoveryWrap == null) throw RecoveryKeyRequiredError()
+        val raw = SecretKeys.parse(secretKey).raw
+        withMasterPassword(session, password) { vk ->
+            val kek = SecretKeys.passwordSecretKek(password, session.header.kdf, session.vaultId, raw)
+            val wrap = Keys.wrapVaultKey(kek, vk, session.vaultId, WrapPurpose.PASSWORD_SK)
+            val info = SecretKeyInfo(SecretKeys.id(raw, session.vaultId), clock.now())
+            session.commitHeader { d ->
+                d.header = d.header.copy(version = maxOf(d.header.version, VAULT_FORMAT_VERSION_SECRET_KEY), passwordWrap = wrap, secretKey = info)
+                d.security = d.security.copy(secretKey = SecretKeys.toStored(raw))
+            }
+        }
+        if (rememberOnDevice) rememberSecretKey(session.vaultId, raw) else forgetSecretKey(session.vaultId)
+    }
+
+    /** Go back to master-password-only protection of the cloud copy (the header stays version 2). */
+    fun disableSecretKey(session: VaultSession, password: String) {
+        withMasterPassword(session, password) { vk ->
+            val wrap = Keys.wrapVaultKey(Keys.passwordKek(password, session.header.kdf, session.vaultId), vk, session.vaultId, WrapPurpose.PASSWORD)
+            session.commitHeader { d ->
+                d.header = d.header.copy(passwordWrap = wrap, secretKey = null)
+                d.security = d.security.copy(secretKey = null)
+            }
+        }
+        forgetSecretKey(session.vaultId)
+    }
+
+    /** The Secret Key of an unlocked vault, for "Add a device" (QR) or a new kit. Re-verify the user first. */
+    fun currentSecretKey(session: VaultSession): ByteArray? =
+        if (session.header.secretKey != null) session.security.secretKey?.let(SecretKeys::fromStored) else null
 
     companion object {
         const val SECOND_FACTOR_TTL_MS = 3 * 60_000L

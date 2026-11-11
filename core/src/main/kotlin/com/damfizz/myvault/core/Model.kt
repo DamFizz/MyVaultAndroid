@@ -55,6 +55,16 @@ object VaultJson {
 
 const val VAULT_FORMAT = "myvault-vault"
 const val VAULT_FORMAT_VERSION = 1
+/** Written once a Secret Key has been enabled. */
+const val VAULT_FORMAT_VERSION_SECRET_KEY = 2
+/** Highest header version this app reads; newer files are refused, never overwritten. */
+const val VAULT_FORMAT_MAX_VERSION = 2
+
+/** Drop `key: null` unless the original JSON had it (the web leaves these keys out until used). */
+internal fun JsonObject.omitNullUnlessIn(raw: JsonObject?, vararg keys: String): JsonObject {
+    val drop = keys.filter { this[it] is JsonNull && raw?.containsKey(it) != true }
+    return if (drop.isEmpty()) this else JsonObject(this - drop.toSet())
+}
 const val SETTINGS_RECORD_ID = "vault-settings"
 
 @Serializable
@@ -222,11 +232,13 @@ data class VaultHeader(
     val passwordWrap: Sealed,
     val recoveryWrap: Sealed? = null,
     val security: Sealed,
+    /** Format v2: set when the password wrap also needs the device-held Secret Key. */
+    val secretKey: SecretKeyInfo? = null,
     @Transient val raw: JsonObject? = null,
 ) {
     fun toJson(): JsonObject {
-        val encoded = VaultJson.json.encodeToJsonElement(serializer(), this).jsonObject
-        val extra = raw?.filterKeys { it !in encoded } ?: emptyMap()
+        val encoded = VaultJson.json.encodeToJsonElement(serializer(), this).jsonObject.omitNullUnlessIn(raw, "secretKey")
+        val extra = raw?.filterKeys { it !in encoded && it != "secretKey" } ?: emptyMap()
         return JsonObject(encoded + extra)
     }
 
@@ -255,11 +267,13 @@ data class SecurityConfig(
     val recoveryCodesCreatedAt: Long? = null,
     val recoveryKeyCreatedAt: Long? = null,
     val passwordChangedAt: Long = 0,
+    /** Secret Key (26 base32 chars) kept inside the encrypted vault so unlocked devices can show it again */
+    val secretKey: String? = null,
     @Transient val raw: JsonObject? = null,
 ) {
     fun toJson(): JsonObject {
-        val encoded = VaultJson.json.encodeToJsonElement(serializer(), this).jsonObject
-        val extra = raw?.filterKeys { it !in encoded } ?: emptyMap()
+        val encoded = VaultJson.json.encodeToJsonElement(serializer(), this).jsonObject.omitNullUnlessIn(raw, "secretKey")
+        val extra = raw?.filterKeys { it !in encoded && it != "secretKey" } ?: emptyMap()
         return JsonObject(encoded + extra)
     }
 
@@ -289,13 +303,17 @@ object SyncFormat {
         if (h !is JsonObject) throw InvalidVaultFileError("Missing vault header")
         if (h.str("format") != VAULT_FORMAT) throw InvalidVaultFileError("Not a MyVault vault")
         val v = h.num("version") ?: throw InvalidVaultFileError("Unsupported vault format version")
-        if (v > 1) throw InvalidVaultFileError("Unsupported vault format version ${v.toLong()}")
+        if (v > VAULT_FORMAT_MAX_VERSION) throw InvalidVaultFileError("Unsupported vault format version ${v.toLong()}")
         if (h.str("vaultId") == null || h.str("vtag") == null || h.num("rev") == null) throw InvalidVaultFileError("Vault header is incomplete")
         val kdf = h["kdf"] as? JsonObject
         if (kdf == null || kdf.str("alg") != "argon2id" || kdf.str("salt") == null) throw InvalidVaultFileError("Unsupported key derivation")
         if (!isSealed(h["passwordWrap"]) || !isSealed(h["security"])) throw InvalidVaultFileError("Vault header is incomplete")
         val rw = h["recoveryWrap"]
         if (rw != null && rw !is JsonNull && !isSealed(rw)) throw InvalidVaultFileError("Vault header is corrupted")
+        val sk = h["secretKey"]
+        if (sk != null && sk !is JsonNull) {
+            if (v < 2 || sk !is JsonObject || sk.str("id") == null || sk.num("createdAt") == null) throw InvalidVaultFileError("Vault header is corrupted")
+        }
     }
 
     fun validateRecords(records: JsonElement?): List<EncryptedRecord> {

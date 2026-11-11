@@ -6,7 +6,9 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { totp } from '@web/lib/totp';
-import { unlockWithPassword, unlockWithRecoveryKey, WrongPasswordError, InvalidCodeError } from '@web/vault/access';
+import { disableSecretKey, unlockWithPassword, unlockWithRecoveryKey, WrongPasswordError, InvalidCodeError } from '@web/vault/access';
+import { SecretKeyRequiredError, WrongSecretKeyError } from '@web/vault/secret-key';
+import { generateSecretKey } from '@web/vault/keys';
 import { openBackup } from '@web/vault/backup';
 import { parseSyncFile } from '@web/sync/format';
 import type { VaultSession } from '@web/vault/session';
@@ -87,6 +89,41 @@ describe('vault created by the Android core', () => {
     const opened = await openBackup(v.backup, v.backupPassword);
     expect(opened.header.vaultId).toBe(parseSyncFile(v.syncFile).header.vaultId);
     expect(opened.appVersion).toBe('android-fixture');
+  });
+});
+
+describe('Secret Key (format v2) vault created by the Android core', () => {
+  const v = fx.createdV2;
+
+  test('needs the Secret Key on a new device, then decrypts every record', async () => {
+    const { repo, file } = await repoFor(v);
+    expect(file.header.version).toBe(2);
+    await expect(unlockWithPassword(repo.asRepo(), v.password)).rejects.toBeInstanceOf(SecretKeyRequiredError);
+    await expect(unlockWithPassword(repo.asRepo(), v.password, { secretKey: (await generateSecretKey()).display })).rejects.toBeInstanceOf(WrongSecretKeyError);
+    await expect(unlockWithPassword(repo.asRepo(), 'wrong', { secretKey: v.secretKey })).rejects.toBeInstanceOf(WrongPasswordError);
+    const step = await unlockWithPassword(repo.asRepo(), v.password, { secretKey: v.secretKey.toLowerCase() });
+    if (step.type !== 'unlocked') throw new Error('expected unlocked');
+    expectPayloadsMatch(step.session, v.expected);
+    step.session.lock();
+    expect((await unlockWithPassword(repo.asRepo(), v.password)).type).toBe('unlocked'); // remembered on this device
+  });
+
+  test('Kotlin Secret Key vault: recovery key on the web recovers the Secret Key', async () => {
+    const { repo } = await repoFor(v);
+    const step = await unlockWithRecoveryKey(repo.asRepo(), v.recoveryKey, 'Web-Pulih-SK-4');
+    if (step.type !== 'unlocked') throw new Error('expected unlocked');
+    step.session.lock();
+    expect((await unlockWithPassword(repo.asRepo(), 'Web-Pulih-SK-4')).type).toBe('unlocked');
+  });
+
+  test('the web can turn the Kotlin Secret Key off again', async () => {
+    const { repo } = await repoFor(v);
+    const step = await unlockWithPassword(repo.asRepo(), v.password, { secretKey: v.secretKey });
+    if (step.type !== 'unlocked') throw new Error('expected unlocked');
+    await disableSecretKey(step.session, v.password);
+    const again = new MemRepo();
+    await again.replaceVault((await repo.getHeader())!, await repo.allRecords());
+    expect((await unlockWithPassword(again.asRepo(), v.password)).type).toBe('unlocked');
   });
 });
 

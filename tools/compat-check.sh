@@ -5,6 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 WEB="${MYVAULT_WEB_ROOT:-../DAMMYVAULT}"
+export MYVAULT_WEB_SRC="$(cd "$WEB" && pwd)/src"
 VITEST="node $WEB/node_modules/vitest/vitest.mjs run --config tools/webfixture/vitest.config.mjs"
 export JAVA_HOME="${JAVA_HOME:-/c/Program Files/Android/Android Studio/jbr}"
 

@@ -78,10 +78,13 @@ object Crypto {
     }
 
     /** HKDF-SHA-256 with UTF-8 `salt` and `info`, exactly as Web Crypto's HKDF deriveBits. */
-    fun hkdf(ikm: ByteArray, info: String, salt: String = "", length: Int = 32): ByteArray {
+    fun hkdf(ikm: ByteArray, info: String, salt: String = "", length: Int = 32): ByteArray =
+        hkdfRaw(ikm, Encoding.utf8(info), Encoding.utf8(salt), length)
+
+    /** HKDF-SHA-256 with raw `info` and `salt` bytes. */
+    fun hkdfRaw(ikm: ByteArray, infoBytes: ByteArray, salt: ByteArray, length: Int = 32): ByteArray {
         require(length in 1..255 * 32)
-        val prk = hmacSha256(Encoding.utf8(salt), ikm)
-        val infoBytes = Encoding.utf8(info)
+        val prk = hmacSha256(salt, ikm)
         val out = ByteArray(length)
         var t = ByteArray(0)
         var pos = 0
