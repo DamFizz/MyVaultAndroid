@@ -9,7 +9,7 @@ The web app (`D:\DAMMYVAULT`, live at myvault-damfizz.web.app) is the reference 
 | 1. Toolchain | ✅ Done. JBR 21 from Android Studio, SDK platform 36, build-tools 35/36.1, Gradle 8.14.3 wrapper |
 | 2. Core crypto + vault format (`:core`, pure Kotlin) | ✅ Done. 18 Kotlin tests and 8 web-side tests pass |
 | 2b. Secret Key format v2 (docs/SECRET-KEY.md) | ✅ Format support on web (branch `secret-key-format`) + `:core`, no UI yet |
-| 3. Local storage, unlock, biometrics | ⏳ Planned (below) |
+| 3. Local storage, unlock, biometrics | 🟡 Early alpha APK 0.1.0 (read-only): file store, import of .myvault backups, unlock/2FA/trust/recovery/Secret Key, biometric quick unlock, list + detail. Tested on emulator (API 36). Not yet measured on a real phone |
 | 4. Compose UI with Liquid Glass | ⏳ Planned |
 | 5. Drive sync and Autofill | ⏳ Planned |
 

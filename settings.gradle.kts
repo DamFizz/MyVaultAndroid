@@ -15,4 +15,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "MyVaultAndroid"
-include(":core")
+include(":core", ":app")

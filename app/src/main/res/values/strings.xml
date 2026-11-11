@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MyVault</string>
+    <string name="back">Back</string>
+    <string name="cancel">Cancel</string>
+    <string name="busy_kdf">Deriving key with Argon2id…</string>
+
+    <string name="welcome_title">Your vault, now native</string>
+    <string name="welcome_body">End-to-end encrypted, the same vault format as MyVault on the web. This early build is read-only: import a backup from the web app, or create a test vault.</string>
+    <string name="welcome_create">Create a new vault</string>
+    <string name="welcome_import">Import a .myvault backup</string>
+
+    <string name="create_title">Create vault</string>
+    <string name="create_password">Master password</string>
+    <string name="create_confirm">Confirm master password</string>
+    <string name="create_hint">Nobody can reset this password, not even the app. Use a long passphrase you will remember.</string>
+    <string name="create_button">Create vault</string>
+
+    <string name="import_title">Import backup</string>
+    <string name="import_body">On the web app open Backup → Export, then pick the .myvault file here. Your vault stays encrypted; you unlock it with your master password afterwards.</string>
+    <string name="import_pick">Choose .myvault file</string>
+    <string name="import_picked">File: %1$s</string>
+    <string name="import_backup_password">Backup password</string>
+    <string name="import_open">Open backup</string>
+    <string name="import_confirm_title">Replace the vault on this phone?</string>
+    <string name="import_confirm_body">Backup from %1$s with %2$d encrypted records. Anything already on this phone is replaced.</string>
+    <string name="import_replace">Replace</string>
+
+    <string name="unlock_title">Unlock</string>
+    <string name="master_password">Master password</string>
+    <string name="secret_key">Secret Key</string>
+    <string name="secret_key_hint">MV2-XXXX-XXXX-… from your Emergency Kit</string>
+    <string name="remember_secret_key">Remember the Secret Key on this phone</string>
+    <string name="unlock_button">Unlock</string>
+    <string name="unlock_biometric">Unlock with biometrics</string>
+    <string name="biometric_unlock_title">Unlock MyVault</string>
+    <string name="forgot_password">Forgot master password?</string>
+    <string name="recovery_title">Use emergency recovery key</string>
+    <string name="recovery_key">Recovery key</string>
+    <string name="new_master_password">New master password</string>
+    <string name="recovery_button">Recover and set new password</string>
+
+    <string name="twofa_title">Two-step verification</string>
+    <string name="twofa_body">Enter the 6-digit code from your authenticator app.</string>
+    <string name="twofa_code">Authenticator code</string>
+    <string name="twofa_trust">Trust this phone for 30 days</string>
+    <string name="twofa_verify">Verify</string>
+    <string name="twofa_use_recovery">Use a recovery code instead</string>
+    <string name="twofa_recovery_code">Recovery code</string>
+    <string name="twofa_recovery_button">Use recovery code</string>
+    <string name="twofa_codes_left">%1$d recovery codes left</string>
+
+    <string name="vault_search">Search vault</string>
+    <string name="vault_empty">No items here yet.</string>
+    <string name="vault_all">All</string>
+    <string name="vault_favorites">Favourites</string>
+    <string name="lock">Lock</string>
+    <string name="settings">Settings</string>
+    <string name="untitled">Untitled</string>
+
+    <string name="detail_copy">Copy</string>
+    <string name="detail_copied">Copied, clears in 30 s</string>
+    <string name="detail_reveal">Show</string>
+    <string name="detail_hide">Hide</string>
+    <string name="detail_reprompt_title">Protected item</string>
+    <string name="detail_reprompt_body">Enter your master password to show or copy secrets of this item.</string>
+    <string name="detail_unlock">Unlock item</string>
+    <string name="field_username">Username</string>
+    <string name="field_email">Email</string>
+    <string name="field_password">Password</string>
+    <string name="field_url">Website</string>
+    <string name="field_notes">Notes</string>
+    <string name="field_ssid">Network name</string>
+    <string name="field_wifi_security">Security</string>
+    <string name="field_product">Product</string>
+    <string name="field_license_key">License key</string>
+    <string name="field_licensee">Licensed to</string>
+    <string name="field_version">Version</string>
+    <string name="field_purchase_date">Purchase date</string>
+    <string name="field_service">Service</string>
+    <string name="field_codes">Codes</string>
+    <string name="field_recovery_email">Recovery email</string>
+    <string name="field_recovery_info">Recovery info</string>
+    <string name="field_important_notes">Important notes</string>
+    <string name="field_tags">Tags</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="settings_security">Security</string>
+    <string name="settings_biometric">Biometric unlock</string>
+    <string name="settings_biometric_body">Unlock with your fingerprint or face. The key never leaves this phone\'s secure hardware, and the authenticator code is still required unless this phone is trusted.</string>
+    <string name="settings_biometric_enable">Turn on</string>
+    <string name="settings_biometric_disable">Turn off</string>
+    <string name="settings_biometric_on">On for this phone</string>
+    <string name="settings_biometric_prompt">Confirm to turn on biometric unlock</string>
+    <string name="settings_trust">Two-step skipped on this phone until %1$s</string>
+    <string name="settings_trust_forget">Ask for the code again</string>
+    <string name="settings_secret_key_on">Secret Key: on</string>
+    <string name="settings_secret_key_off">Secret Key: off (turn it on from the web app once it is released)</string>
+    <string name="settings_recovery_yes">Emergency recovery key: set</string>
+    <string name="settings_recovery_no">Emergency recovery key: not set</string>
+    <string name="settings_kdf">Last Argon2id key derivation: %1$d ms</string>
+    <string name="settings_autolock">Locks automatically 1 minute after leaving the app. Screenshots are blocked.</string>
+    <string name="settings_readonly">Early alpha: read-only. Edit on the web for now; Google Drive sync comes later.</string>
+    <string name="settings_wipe">Remove vault from this phone</string>
+    <string name="settings_wipe_confirm">This deletes the vault and all its local keys from this phone only. Your web vault and backups are not affected.</string>
+    <string name="settings_wipe_yes">Remove</string>
+    <string name="settings_version">Version %1$s · not independently audited</string>
+
+    <string name="err_wrong_password">Incorrect master password.</string>
+    <string name="err_wrong_secret_key">This Secret Key does not belong to this vault.</string>
+    <string name="err_invalid_secret_key">That Secret Key has a typo. Check it against your Emergency Kit.</string>
+    <string name="err_secret_key_required">This vault needs its Secret Key. Enter it from your Emergency Kit.</string>
+    <string name="err_code_expired">This unlock attempt expired. Please start again.</string>
+    <string name="err_clock">This phone\'s clock differs from your authenticator by about %1$d minute(s).</string>
+    <string name="err_code">Invalid or expired code.</string>
+    <string name="err_throttled">Too many attempts. Try again in %1$d s.</string>
+    <string name="err_backup_password">Wrong backup password, or the file was modified.</string>
+    <string name="err_backup_corrupt">This file is not a valid MyVault backup.</string>
+    <string name="err_biometric_invalidated">Biometric unlock was reset because your fingerprints or face changed. Unlock with your password and turn it on again.</string>
+    <string name="err_password_short">Use at least 10 characters.</string>
+    <string name="err_password_mismatch">The passwords do not match.</string>
+</resources>

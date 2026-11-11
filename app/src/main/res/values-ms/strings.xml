@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="back">Kembali</string>
+    <string name="cancel">Batal</string>
+    <string name="busy_kdf">Menjana kunci dengan Argon2id…</string>
+
+    <string name="welcome_title">Vault anda, kini native</string>
+    <string name="welcome_body">Disulitkan hujung-ke-hujung, format vault yang sama dengan MyVault di web. Versi awal ini baca sahaja: import backup dari app web, atau cipta vault untuk cubaan.</string>
+    <string name="welcome_create">Cipta vault baharu</string>
+    <string name="welcome_import">Import backup .myvault</string>
+
+    <string name="create_title">Cipta vault</string>
+    <string name="create_password">Kata laluan induk</string>
+    <string name="create_confirm">Sahkan kata laluan induk</string>
+    <string name="create_hint">Tiada sesiapa boleh set semula kata laluan ini, termasuk app ini. Guna frasa laluan panjang yang anda ingat.</string>
+    <string name="create_button">Cipta vault</string>
+
+    <string name="import_title">Import backup</string>
+    <string name="import_body">Dalam app web buka Backup → Eksport, kemudian pilih fail .myvault di sini. Vault kekal disulitkan; anda buka dengan kata laluan induk selepas itu.</string>
+    <string name="import_pick">Pilih fail .myvault</string>
+    <string name="import_picked">Fail: %1$s</string>
+    <string name="import_backup_password">Kata laluan backup</string>
+    <string name="import_open">Buka backup</string>
+    <string name="import_confirm_title">Ganti vault di telefon ini?</string>
+    <string name="import_confirm_body">Backup dari %1$s dengan %2$d rekod disulitkan. Apa-apa yang ada di telefon ini akan diganti.</string>
+    <string name="import_replace">Ganti</string>
+
+    <string name="unlock_title">Buka kunci</string>
+    <string name="master_password">Kata laluan induk</string>
+    <string name="secret_key">Secret Key</string>
+    <string name="secret_key_hint">MV2-XXXX-XXXX-… dari Emergency Kit anda</string>
+    <string name="remember_secret_key">Ingat Secret Key di telefon ini</string>
+    <string name="unlock_button">Buka kunci</string>
+    <string name="unlock_biometric">Buka dengan biometrik</string>
+    <string name="biometric_unlock_title">Buka MyVault</string>
+    <string name="forgot_password">Lupa kata laluan induk?</string>
+    <string name="recovery_title">Guna kunci pemulihan kecemasan</string>
+    <string name="recovery_key">Kunci pemulihan</string>
+    <string name="new_master_password">Kata laluan induk baharu</string>
+    <string name="recovery_button">Pulihkan dan set kata laluan baharu</string>
+
+    <string name="twofa_title">Pengesahan dua langkah</string>
+    <string name="twofa_body">Masukkan kod 6 digit dari app authenticator anda.</string>
+    <string name="twofa_code">Kod authenticator</string>
+    <string name="twofa_trust">Percayai telefon ini selama 30 hari</string>
+    <string name="twofa_verify">Sahkan</string>
+    <string name="twofa_use_recovery">Guna kod pemulihan</string>
+    <string name="twofa_recovery_code">Kod pemulihan</string>
+    <string name="twofa_recovery_button">Guna kod pemulihan</string>
+    <string name="twofa_codes_left">Tinggal %1$d kod pemulihan</string>
+
+    <string name="vault_search">Cari dalam vault</string>
+    <string name="vault_empty">Belum ada item di sini.</string>
+    <string name="vault_all">Semua</string>
+    <string name="vault_favorites">Kegemaran</string>
+    <string name="lock">Kunci</string>
+    <string name="settings">Tetapan</string>
+    <string name="untitled">Tanpa tajuk</string>
+
+    <string name="detail_copy">Salin</string>
+    <string name="detail_copied">Disalin, dipadam dalam 30 s</string>
+    <string name="detail_reveal">Tunjuk</string>
+    <string name="detail_hide">Sorok</string>
+    <string name="detail_reprompt_title">Item dilindungi</string>
+    <string name="detail_reprompt_body">Masukkan kata laluan induk untuk tunjuk atau salin rahsia item ini.</string>
+    <string name="detail_unlock">Buka item</string>
+    <string name="field_username">Nama pengguna</string>
+    <string name="field_email">E-mel</string>
+    <string name="field_password">Kata laluan</string>
+    <string name="field_url">Laman web</string>
+    <string name="field_notes">Nota</string>
+    <string name="field_ssid">Nama rangkaian</string>
+    <string name="field_wifi_security">Keselamatan</string>
+    <string name="field_product">Produk</string>
+    <string name="field_license_key">Kunci lesen</string>
+    <string name="field_licensee">Pemegang lesen</string>
+    <string name="field_version">Versi</string>
+    <string name="field_purchase_date">Tarikh beli</string>
+    <string name="field_service">Perkhidmatan</string>
+    <string name="field_codes">Kod</string>
+    <string name="field_recovery_email">E-mel pemulihan</string>
+    <string name="field_recovery_info">Maklumat pemulihan</string>
+    <string name="field_important_notes">Nota penting</string>
+    <string name="field_tags">Tag</string>
+
+    <string name="settings_title">Tetapan</string>
+    <string name="settings_security">Keselamatan</string>
+    <string name="settings_biometric">Buka kunci biometrik</string>
+    <string name="settings_biometric_body">Buka dengan cap jari atau wajah. Kunci tidak pernah keluar dari perkakasan selamat telefon ini, dan kod authenticator masih diperlukan kecuali telefon ini dipercayai.</string>
+    <string name="settings_biometric_enable">Hidupkan</string>
+    <string name="settings_biometric_disable">Matikan</string>
+    <string name="settings_biometric_on">Hidup untuk telefon ini</string>
+    <string name="settings_biometric_prompt">Sahkan untuk hidupkan buka kunci biometrik</string>
+    <string name="settings_trust">Dua langkah dilangkau di telefon ini sehingga %1$s</string>
+    <string name="settings_trust_forget">Minta kod semula</string>
+    <string name="settings_secret_key_on">Secret Key: hidup</string>
+    <string name="settings_secret_key_off">Secret Key: mati (hidupkan dari app web bila ia dilancarkan)</string>
+    <string name="settings_recovery_yes">Kunci pemulihan kecemasan: ada</string>
+    <string name="settings_recovery_no">Kunci pemulihan kecemasan: belum ada</string>
+    <string name="settings_kdf">Terbitan kunci Argon2id terakhir: %1$d ms</string>
+    <string name="settings_autolock">Dikunci automatik 1 minit selepas keluar dari app. Tangkapan skrin disekat.</string>
+    <string name="settings_readonly">Alpha awal: baca sahaja. Sunting di web buat masa ini; sync Google Drive datang kemudian.</string>
+    <string name="settings_wipe">Buang vault dari telefon ini</string>
+    <string name="settings_wipe_confirm">Ini memadam vault dan semua kunci tempatannya dari telefon ini sahaja. Vault web dan backup anda tidak terjejas.</string>
+    <string name="settings_wipe_yes">Buang</string>
+    <string name="settings_version">Versi %1$s · belum diaudit secara bebas</string>
+
+    <string name="err_wrong_password">Kata laluan induk salah.</string>
+    <string name="err_wrong_secret_key">Secret Key ini bukan untuk vault ini.</string>
+    <string name="err_invalid_secret_key">Secret Key ada salah taip. Semak dengan Emergency Kit anda.</string>
+    <string name="err_secret_key_required">Vault ini perlukan Secret Key. Masukkan dari Emergency Kit anda.</string>
+    <string name="err_code_expired">Cubaan buka kunci ini tamat tempoh. Sila mula semula.</string>
+    <string name="err_clock">Jam telefon ini berbeza dari authenticator anda kira-kira %1$d minit.</string>
+    <string name="err_code">Kod tidak sah atau tamat tempoh.</string>
+    <string name="err_throttled">Terlalu banyak cubaan. Cuba lagi dalam %1$d s.</string>
+    <string name="err_backup_password">Kata laluan backup salah, atau fail telah diubah.</string>
+    <string name="err_backup_corrupt">Fail ini bukan backup MyVault yang sah.</string>
+    <string name="err_biometric_invalidated">Buka kunci biometrik diset semula kerana cap jari atau wajah anda berubah. Buka dengan kata laluan dan hidupkan semula.</string>
+    <string name="err_password_short">Guna sekurang-kurangnya 10 aksara.</string>
+    <string name="err_password_mismatch">Kata laluan tidak sepadan.</string>
+</resources>

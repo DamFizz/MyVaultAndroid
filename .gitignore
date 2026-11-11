@@ -8,3 +8,6 @@ tools/webfixture/out/
 tools/webfixture/.cache/
 captures/
 node_modules/
+keystore.properties
+*.jks
+dist/
