@@ -78,19 +78,20 @@ internal fun typeLabel(type: String): Int = when (type) {
     else -> R.string.type_login
 }
 
-internal fun copySensitive(context: Context, label: String, value: String) {
+internal fun copySensitive(context: Context, label: String, value: String, clearAfterSeconds: Int = 30) {
     val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     val clip = ClipData.newPlainText(label, value)
     clip.description.extras = PersistableBundle().apply {
         if (Build.VERSION.SDK_INT >= 33) putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true) else putBoolean("android.content.extra.IS_SENSITIVE", true)
     }
     cm.setPrimaryClip(clip)
+    if (clearAfterSeconds <= 0) return
     Handler(Looper.getMainLooper()).postDelayed({
         val current = cm.primaryClip?.getItemAt(0)?.text?.toString()
         if (current == value) {
             if (Build.VERSION.SDK_INT >= 28) cm.clearPrimaryClip() else cm.setPrimaryClip(ClipData.newPlainText("", ""))
         }
-    }, 30_000)
+    }, clearAfterSeconds * 1000L)
 }
 
 /** Folders as a tree with depth, like the web's sectionOptions(). */
@@ -122,10 +123,10 @@ private fun filterLabel(filter: ItemFilter, collections: List<VaultCollection>):
     ItemFilter.Trash -> stringResource(R.string.nav_trash)
 }
 
-/** A sheet body that scrolls when it is taller than the screen allows. */
+/** Spaced column for sheet bodies (the sheet itself scrolls when it is taller than the screen allows). */
 @Composable
 internal fun SheetList(content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
 }
 
 @Composable
@@ -363,7 +364,7 @@ internal fun DetailScreen(vm: VaultViewModel, id: String) {
     }
     val history = item.passwordHistory.orEmpty()
     val onCopy = { f: FieldSpec ->
-        copySensitive(context, f.label, f.value)
+        copySensitive(context, f.label, f.value, vm.prefs.clipboardClearSeconds)
         vm.markUsed(id)
         host.toast(copied)
     }
@@ -411,7 +412,7 @@ internal fun DetailScreen(vm: VaultViewModel, id: String) {
                 }
                 GlassButton(stringResource(R.string.detail_unlock), { askPassword = true }, Modifier.fillMaxWidth(), icon = Icons.Filled.Lock)
             }
-            if (fields.isNotEmpty()) InsetGroup { fields.forEachIndexed { i, f -> FieldRow(f, locked && f.secret, onCopy, onOpen); if (i != fields.lastIndex) GroupDivider() } }
+            if (fields.isNotEmpty()) InsetGroup { fields.forEachIndexed { i, f -> FieldRow(f, locked && f.secret, onCopy, onOpen, vm.prefs.revealSeconds); if (i != fields.lastIndex) GroupDivider() } }
             if (notes.isNotEmpty()) InsetGroup { notes.forEachIndexed { i, f -> FieldRow(f, false, onCopy, onOpen); if (i != notes.lastIndex) GroupDivider() } }
             if (history.isNotEmpty() && !locked) {
                 SectionHeader(stringResource(R.string.detail_history) + " (${history.size})")
@@ -479,9 +480,16 @@ internal fun DetailScreen(vm: VaultViewModel, id: String) {
 }
 
 @Composable
-private fun FieldRow(f: FieldSpec, locked: Boolean, onCopy: (FieldSpec) -> Unit, onOpen: (String) -> Unit) {
+private fun FieldRow(f: FieldSpec, locked: Boolean, onCopy: (FieldSpec) -> Unit, onOpen: (String) -> Unit, revealSeconds: Int = 20) {
     val c = LocalGlassColors.current
     var shown by remember { mutableStateOf(false) }
+    // Revealed secrets hide themselves again (web: revealSeconds; 0 = until hidden manually).
+    LaunchedEffect(shown) {
+        if (shown && revealSeconds > 0) {
+            kotlinx.coroutines.delay(revealSeconds * 1000L)
+            shown = false
+        }
+    }
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 6.dp, top = 10.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(f.label, style = Type.footnote, color = c.text3)

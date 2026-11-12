@@ -53,6 +53,7 @@ sealed interface Screen {
     data object Vault : Screen
     data class Detail(val id: String) : Screen
     data object Editor : Screen
+    data object Organize : Screen
 }
 
 /** One opened backup waiting for confirmation before it replaces the vault on this phone. */
@@ -60,6 +61,7 @@ class PendingImport(val opened: Backup.Opened, val text: String)
 
 class VaultViewModel(app: Application) : AndroidViewModel(app) {
     private val store = FileVaultStore(File(app.filesDir, "vault"))
+    val prefs = com.damfizz.myvault.data.Prefs(app)
     private val access = VaultAccess(
         store,
         deviceName = "${Build.MANUFACTURER} ${Build.MODEL}".trim().take(40),
@@ -221,7 +223,26 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
     fun onForeground() {
         val at = backgroundAt ?: return
         backgroundAt = null
-        if (session != null && SystemClock.elapsedRealtime() - at >= AUTO_LOCK_MS) lock()
+        val secs = prefs.lockOnHiddenSeconds
+        if (session != null && secs >= 0 && SystemClock.elapsedRealtime() - at >= secs * 1000L) lock()
+        lastInteraction = SystemClock.elapsedRealtime()
+    }
+
+    private var lastInteraction = SystemClock.elapsedRealtime()
+
+    fun onUserInteraction() {
+        lastInteraction = SystemClock.elapsedRealtime()
+    }
+
+    init {
+        // Inactivity lock (web: autoLockMinutes). Checked every 15 s while the app is alive.
+        viewModelScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(15_000)
+                val mins = prefs.autoLockMinutes
+                if (session != null && mins > 0 && !busy && SystemClock.elapsedRealtime() - lastInteraction >= mins * 60_000L) lock()
+            }
+        }
     }
 
     // ------------------------------------------------------------------ reads
@@ -310,7 +331,9 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
     class Notice(val message: String, val undo: (() -> Unit)? = null)
 
     var filter by mutableStateOf<ItemFilter>(ItemFilter.All)
-    var sortBy by mutableStateOf(SortBy.TITLE)
+    var sortBy: SortBy
+        get() = prefs.sortBy
+        set(value) = prefs.updateSortBy(value)
     var notice by mutableStateOf<Notice?>(null)
         private set
     var noticeId by mutableStateOf(0)
@@ -440,6 +463,99 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
         Items.save(s, item.copy(password = password), now(), str(R.string.untitled))
         revision++
         notice = Notice(str(R.string.gen_saved_to, item.title)); noticeId++
+    }
+
+    // ------------------------------------------------------------------ organize
+
+    fun saveCollection(c: VaultCollection) {
+        val s = session ?: return
+        com.damfizz.myvault.core.Collections.save(s, c, now())
+        revision++
+    }
+
+    fun moveCollection(c: VaultCollection, dir: Int) {
+        val s = session ?: return
+        com.damfizz.myvault.core.Collections.move(s, c, dir, now())
+        revision++
+    }
+
+    fun deleteCollection(id: String, moveTo: String?) {
+        val s = session ?: return
+        s.deleteCollection(id, moveTo)
+        if (filter == ItemFilter.Category(id) || filter == ItemFilter.Section(id)) filter = ItemFilter.All
+        revision++
+    }
+
+    // ------------------------------------------------------------------ vault settings and security management
+
+    fun updateVaultSettings(transform: (com.damfizz.myvault.core.VaultSettings) -> com.damfizz.myvault.core.VaultSettings) {
+        session?.saveSettings(transform)
+        revision++
+    }
+
+    fun security() = session?.security
+    fun deviceName(): String = session?.device?.name.orEmpty()
+    fun recordCount(): Int = store.allRecords().size
+
+    fun renameDevice(name: String) {
+        com.damfizz.myvault.core.Devices.rename(store, name)
+        revision++
+    }
+
+    /** One-time secrets to show after a security change (recovery key, recovery codes). */
+    var reveal by mutableStateOf<Pair<String, List<String>>?>(null)
+
+    fun changeMasterPassword(current: String, next: String, confirm: String, onDone: () -> Unit) = work {
+        val s = session ?: return@work
+        if (next != confirm) { error = str(R.string.err_password_mismatch); return@work }
+        if (!com.damfizz.myvault.core.Strength.isAcceptableMasterPassword(next)) { error = str(R.string.err_password_weak); return@work }
+        timedKdf { access.changeMasterPassword(s, current, next) }
+        // the biometric wrap holds the vault key, which did not change, so it stays valid
+        revision++
+        notice = Notice(str(R.string.settings_password_changed)); noticeId++
+        onDone()
+    }
+
+    fun createRecoveryKey(password: String, onDone: () -> Unit) = work {
+        val s = session ?: return@work
+        val key = timedKdf { access.createRecoveryKey(s, password) }
+        revision++
+        reveal = "recoveryKey" to listOf(key)
+        onDone()
+    }
+
+    fun removeRecoveryKey(password: String, onDone: () -> Unit) = work {
+        val s = session ?: return@work
+        timedKdf { access.verifyMasterPassword(s, password) }
+        if (s.header.secretKey != null) { error = str(R.string.err_recovery_needed_for_sk); return@work }
+        access.removeRecoveryKey(s)
+        revision++
+        onDone()
+    }
+
+    fun enableTotp(secret: String, code: String, onDone: () -> Unit) = work {
+        val s = session ?: return@work
+        val codes = withContext(Dispatchers.Default) { access.enableTotp(s, secret, code) }
+        revision++
+        reveal = "recoveryCodes" to codes
+        onDone()
+    }
+
+    fun disableTotp(password: String, onDone: () -> Unit) = work {
+        val s = session ?: return@work
+        timedKdf { access.verifyMasterPassword(s, password) }
+        access.disableTotp(s)
+        access.forgetDeviceTrust(s)
+        revision++
+        onDone()
+    }
+
+    fun regenerateRecoveryCodes(password: String, onDone: () -> Unit) = work {
+        val s = session ?: return@work
+        timedKdf { access.verifyMasterPassword(s, password) }
+        reveal = "recoveryCodes" to access.regenerateRecoveryCodes(s)
+        revision++
+        onDone()
     }
 
     fun logins(): List<VaultItem> = items().filter { it.type == ItemType.LOGIN && it.archivedAt == null }.sortedBy { it.title.lowercase() }

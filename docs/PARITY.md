@@ -40,8 +40,8 @@ Legend: ✅ in the APK · 🟡 logic in `:core`, no screen yet · ⬜ not starte
 
 | Feature | Status |
 |---|---|
-| Categories and folders: create, rename, icon, colour, pin, reorder, nest folders | 🟡 |
-| Delete with "move items to…" (items are never deleted) | 🟡 |
+| Categories and folders: create, rename, icon, colour, pin, reorder, nest folders | ✅ |
+| Delete with "move items to…" (items are never deleted) | ✅ |
 
 ## 4. Generator [`views/GeneratorView`, `lib/generator.ts`, `lib/strength.ts`]
 
@@ -85,16 +85,16 @@ Legend: ✅ in the APK · 🟡 logic in `:core`, no screen yet · ⬜ not starte
 
 | Feature | Status |
 |---|---|
-| Appearance: theme (dark/light/system), accent colour, language, motion (full/reduced), density | ⬜ (language follows the phone) |
-| Change master password | 🟡 |
-| Authenticator: enable with QR, replace, disable; recovery codes regenerate + print | 🟡 |
-| Recovery key: create, replace, remove; Recovery Kit | 🟡 |
+| Appearance: theme (dark/light/system), accent colour, language (Android 13+) | ✅ (motion and density options ⬜) |
+| Change master password (with strength check) | ✅ |
+| Authenticator: enable with QR, disable; recovery codes regenerate and copy | ✅ (print ⬜; not yet exercised end to end on the emulator) |
+| Recovery key: create, replace, remove, shown once with copy | ✅ (printable kit ⬜) |
 | Secret Key: enable, rotate, disable, Emergency Kit, "add a device" QR | 🟡 (web UI also pending) |
 | Quick unlock on/off | ✅ |
 | Trusted device status and forget | ✅ |
-| Auto-lock timer, lock when hidden, reveal timeout, clipboard clear time | ⬜ (fixed: 1 min / 30 s) |
-| Vault settings: default category, password history limit, old-password days, trash retention, reprompt by default | 🟡 |
-| Device name, storage usage, about/security/privacy text, recovery guide | ⬜ |
+| Auto-lock timer, lock when hidden, reveal timeout, clipboard clear time | ✅ |
+| Vault settings: default category, password history limit, old-password days, trash retention, reprompt by default | ✅ |
+| Device name, record count, about/security/privacy text | ✅ (recovery guide ⬜) |
 
 ## 9. Liquid Glass UI (iOS-style)
 

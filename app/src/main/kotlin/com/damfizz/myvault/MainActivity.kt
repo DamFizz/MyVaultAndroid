@@ -21,12 +21,24 @@ class MainActivity : FragmentActivity() {
         // debug builds allow screenshots so the UI can be tested on an emulator).
         if (!BuildConfig.DEBUG) window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
         enableEdgeToEdge()
-        setContent { GlassTheme { AppRoot(vm) } }
+        setContent {
+            val dark = when (vm.prefs.theme) {
+                "dark" -> true
+                "light" -> false
+                else -> androidx.compose.foundation.isSystemInDarkTheme()
+            }
+            GlassTheme(dark = dark, accent = vm.prefs.accent) { AppRoot(vm) }
+        }
     }
 
     override fun onStart() {
         super.onStart()
         vm.onForeground()
+    }
+
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        vm.onUserInteraction()
     }
 
     override fun onStop() {

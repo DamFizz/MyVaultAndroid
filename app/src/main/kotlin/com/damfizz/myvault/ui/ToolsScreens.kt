@@ -122,7 +122,7 @@ internal fun GeneratorTab(vm: VaultViewModel, pad: PaddingValues) {
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             GlassButton(stringResource(R.string.gen_regenerate), { nonce++ }, Modifier.weight(1f), prominent = false, icon = Icons.Filled.Refresh)
-            GlassButton(stringResource(R.string.detail_copy), { copySensitive(context, "password", result); host.toast(copied) }, Modifier.weight(1f), enabled = result.isNotEmpty(), icon = Icons.Filled.ContentCopy)
+            GlassButton(stringResource(R.string.detail_copy), { copySensitive(context, "password", result, vm.prefs.clipboardClearSeconds); host.toast(copied) }, Modifier.weight(1f), enabled = result.isNotEmpty(), icon = Icons.Filled.ContentCopy)
         }
         GlassButton(stringResource(R.string.gen_save), { saveSheet = true }, Modifier.fillMaxWidth(), prominent = false, enabled = result.isNotEmpty(), icon = Icons.Filled.Save)
 

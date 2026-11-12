@@ -66,6 +66,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.1")
     implementation("androidx.core:core-ktx:1.16.0")
     implementation("androidx.biometric:biometric:1.1.0")
+    // QR codes for Authenticator enrolment and the Secret Key (encoder only, no camera)
+    implementation("com.google.zxing:core:3.5.3")
     implementation("androidx.fragment:fragment-ktx:1.8.8")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     debugImplementation("androidx.compose.ui:ui-tooling")

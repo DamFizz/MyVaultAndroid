@@ -136,6 +136,7 @@ fun AppRoot(vm: VaultViewModel) {
                 Screen.Vault -> MainScreen(vm)
                 is Screen.Detail -> DetailScreen(vm, s.id)
                 Screen.Editor -> EditorScreen(vm)
+                Screen.Organize -> OrganizeScreen(vm)
             }
         }
         val host = LocalOverlayHost.current
@@ -333,85 +334,4 @@ private fun SecondFactorScreen(vm: VaultViewModel, s: Screen.SecondFactor) = Aut
         GlassButton(stringResource(R.string.twofa_recovery_button), { vm.useRecoveryCode(s.challenge, rc) }, Modifier.fillMaxWidth(), enabled = rc.isNotBlank())
         TextLink(stringResource(R.string.back), { useRecovery = false; vm.clearError() })
     }
-}
-
-// ------------------------------------------------------------------ settings tab
-
-@Composable
-internal fun SettingsTab(vm: VaultViewModel, pad: PaddingValues) {
-    val c = LocalGlassColors.current
-    val activity = LocalContext.current as FragmentActivity
-    val rev = vm.revision
-    val bio = remember(rev) { vm.biometricEnabled() }
-    val trustedUntil = remember(rev) { vm.deviceTrustedUntil() }
-    var pw by rememberSaveable { mutableStateOf("") }
-    var askBio by remember { mutableStateOf(false) }
-    var askWipe by remember { mutableStateOf(false) }
-    val promptTitle = stringResource(R.string.settings_biometric_prompt)
-    val cancel = stringResource(R.string.cancel)
-    val canBio = remember { BiometricManager.from(activity).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS }
-
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(pad), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        LargeTitle(stringResource(R.string.settings_title), Modifier.padding(start = 6.dp, bottom = 6.dp))
-
-        SectionHeader(stringResource(R.string.settings_biometric))
-        InsetGroup {
-            ListRow(
-                stringResource(R.string.settings_biometric),
-                subtitle = if (bio) stringResource(R.string.settings_biometric_on) else null,
-                leading = { IconTile(Icons.Filled.Fingerprint) },
-                onClick = if (bio || canBio) ({ if (bio) vm.disableBiometric() else askBio = true }) else null,
-            ) { com.damfizz.myvault.ui.glass.GlassToggle(bio, { on -> if (on) askBio = true else vm.disableBiometric() }) }
-        }
-        Footnote(stringResource(R.string.settings_biometric_body), Modifier.padding(horizontal = 16.dp))
-
-        SectionHeader(stringResource(R.string.settings_security))
-        InsetGroup {
-            ListRow(stringResource(if (vm.hasSecretKeyMode()) R.string.settings_secret_key_on else R.string.settings_secret_key_off), leading = { IconTile(Icons.Filled.Key) })
-            GroupDivider(68.dp)
-            ListRow(stringResource(if (vm.hasRecoveryKey()) R.string.settings_recovery_yes else R.string.settings_recovery_no), leading = { IconTile(Icons.Filled.VpnKey) })
-            if (trustedUntil != null) {
-                GroupDivider(68.dp)
-                ListRow(
-                    stringResource(R.string.settings_trust, DateFormat.getDateInstance().format(Date(trustedUntil))),
-                    subtitle = stringResource(R.string.settings_trust_forget),
-                    leading = { IconTile(Icons.Filled.Shield) },
-                    onClick = vm::forgetTrust,
-                )
-            }
-        }
-        vm.lastKdfMillis?.let { Footnote(stringResource(R.string.settings_kdf, it.toInt()), Modifier.padding(horizontal = 16.dp)) }
-        Footnote(stringResource(R.string.settings_autolock), Modifier.padding(horizontal = 16.dp))
-        Footnote(stringResource(R.string.settings_readonly), Modifier.padding(horizontal = 16.dp))
-
-        Spacer(Modifier.height(6.dp))
-        InsetGroup { ListRow(stringResource(R.string.settings_wipe), titleColor = c.danger, onClick = { askWipe = true }) }
-        Footnote(stringResource(R.string.settings_version, BuildConfigCompat.versionName(activity)), Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
-    }
-
-    GlassSheet(visible = askBio, onDismiss = { askBio = false; pw = ""; vm.clearError() }) {
-        fun submit() {
-            if (pw.isEmpty()) return
-            val password = pw
-            pw = ""
-            askBio = false
-            runCatching { BiometricKey.encryptCipher() }.onSuccess { cipher ->
-                showBiometricPrompt(activity, promptTitle, cancel, cipher) { vm.enableBiometric(it, password) }
-            }
-        }
-        Text(stringResource(R.string.settings_biometric), style = Type.headline, color = c.text)
-        Body(stringResource(R.string.settings_biometric_body))
-        GlassTextField(pw, { pw = it }, stringResource(R.string.master_password), secret = true, onDone = ::submit)
-        GlassButton(stringResource(R.string.settings_biometric_enable), ::submit, Modifier.fillMaxWidth(), enabled = pw.isNotEmpty(), icon = Icons.Filled.Fingerprint)
-    }
-    GlassAlert(
-        visible = askWipe,
-        title = stringResource(R.string.settings_wipe),
-        message = stringResource(R.string.settings_wipe_confirm),
-        confirm = stringResource(R.string.settings_wipe_yes),
-        onConfirm = { askWipe = false; vm.wipeDevice() },
-        dismiss = stringResource(R.string.cancel),
-        onDismiss = { askWipe = false },
-        destructive = true,
-    )
 }

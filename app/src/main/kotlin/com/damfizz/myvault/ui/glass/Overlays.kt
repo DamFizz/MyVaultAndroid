@@ -25,10 +25,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
@@ -128,7 +130,7 @@ fun GlassScaffold(
 ) {
     val wall = rememberBackdrop()
     val behindBars = rememberBackdrop()
-    val insets = WindowInsets.safeDrawing.asPaddingValues()
+    val insets = WindowInsets.systemBars.asPaddingValues()
     val top = insets.calculateTopPadding()
     val bottom = insets.calculateBottomPadding()
     val padding = PaddingValues(
@@ -180,12 +182,13 @@ fun GlassSheet(visible: Boolean, onDismiss: () -> Unit, content: @Composable Col
                     .background(c.scrim)
                     .pointerInput(Unit) { detectTapGestures { onDismiss() } },
             )
-            val insets = WindowInsets.safeDrawing.asPaddingValues()
+            val insets = WindowInsets.systemBars.asPaddingValues()
+            // Never taller than the space between the status bar and the keyboard; the body scrolls instead.
             GlassSurface(
                 Modifier
                     .align(Alignment.BottomCenter)
                     .imePadding()
-                    .padding(start = 8.dp, end = 8.dp, bottom = insets.calculateBottomPadding() + 8.dp)
+                    .padding(start = 8.dp, end = 8.dp, top = insets.calculateTopPadding() + 8.dp, bottom = insets.calculateBottomPadding() + 8.dp)
                     .fillMaxWidth()
                     .onSizeChanged { height = it.height }
                     .offset { IntOffset(0, ((1f - progress) * (height + 200) + drag.value).roundToInt()) }
@@ -202,7 +205,10 @@ fun GlassSheet(visible: Boolean, onDismiss: () -> Unit, content: @Composable Col
                 refraction = 18.dp,
                 elevation = 24.dp,
             ) {
-                Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
                     Box(Modifier.align(Alignment.CenterHorizontally).size(width = 38.dp, height = 5.dp).clip(Capsule).background(c.text3))
                     content()
                 }
@@ -277,7 +283,7 @@ private fun ToastLayer(host: OverlayHost) {
     }
     val progress by animateFloatAsState(if (shown) 1f else 0f, spring(dampingRatio = 0.62f, stiffness = 380f), label = "toast")
     if (progress < 0.002f) return
-    val top = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding()
+    val top = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         GlassSurface(
             Modifier
