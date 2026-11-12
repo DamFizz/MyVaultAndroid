@@ -266,6 +266,7 @@ fun GlassTextField(
     keyboard: KeyboardType = if (secret) KeyboardType.Password else KeyboardType.Text,
     imeAction: ImeAction = ImeAction.Done,
     onDone: (() -> Unit)? = null,
+    multiline: Boolean = false,
 ) {
     val c = LocalGlassColors.current
     var shown by rememberSaveable { mutableStateOf(false) }
@@ -273,12 +274,13 @@ fun GlassTextField(
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
-        singleLine = true,
+        singleLine = !multiline,
+        minLines = if (multiline) 3 else 1,
         textStyle = style,
         cursorBrush = SolidColor(c.accent),
         visualTransformation = if (secret && !shown) PasswordVisualTransformation() else VisualTransformation.None,
-        keyboardOptions = KeyboardOptions(keyboardType = keyboard, autoCorrectEnabled = false, imeAction = imeAction),
-        keyboardActions = KeyboardActions(onAny = { onDone?.invoke() }),
+        keyboardOptions = KeyboardOptions(keyboardType = keyboard, autoCorrectEnabled = false, imeAction = if (multiline) ImeAction.Default else imeAction),
+        keyboardActions = if (multiline) KeyboardActions.Default else KeyboardActions(onAny = { onDone?.invoke() }),
         modifier = modifier.fillMaxWidth().semantics { contentDescription = placeholder },
         decorationBox = { inner ->
             Row(

@@ -69,8 +69,13 @@ class OverlayHost {
     internal var toast by mutableStateOf<String?>(null)
     internal var toastId by mutableIntStateOf(0)
 
-    fun toast(message: String) {
+    internal var toastActionLabel by mutableStateOf<String?>(null)
+    internal var toastAction: (() -> Unit)? = null
+
+    fun toast(message: String, actionLabel: String? = null, action: (() -> Unit)? = null) {
         toast = message
+        toastActionLabel = actionLabel
+        toastAction = action
         toastId++
     }
 }
@@ -267,7 +272,7 @@ private fun ToastLayer(host: OverlayHost) {
         val t = host.toast ?: return@LaunchedEffect
         text = t
         shown = true
-        delay(2200)
+        delay(if (host.toastActionLabel != null) 5000 else 2200)
         shown = false
     }
     val progress by animateFloatAsState(if (shown) 1f else 0f, spring(dampingRatio = 0.62f, stiffness = 380f), label = "toast")
@@ -282,7 +287,12 @@ private fun ToastLayer(host: OverlayHost) {
             shape = Capsule,
             blur = 24.dp,
         ) {
-            Text(text, style = Type.callout, color = c.text, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 20.dp, vertical = 13.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text, style = Type.callout, color = c.text, textAlign = TextAlign.Center, modifier = Modifier.padding(start = 20.dp, end = if (host.toastActionLabel != null) 4.dp else 20.dp, top = 13.dp, bottom = 13.dp))
+                host.toastActionLabel?.let { label ->
+                    TextLink(label, { shown = false; host.toastAction?.invoke() }, Modifier.padding(end = 6.dp))
+                }
+            }
         }
     }
 }

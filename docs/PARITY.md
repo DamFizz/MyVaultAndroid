@@ -25,15 +25,15 @@ Legend: ✅ in the APK · 🟡 logic in `:core`, no screen yet · ⬜ not starte
 |---|---|
 | Overview/dashboard: recommendations, favourites, recently used, conflict and corruption notices | ⬜ |
 | List with search (never searches passwords) | ✅ |
-| Views: all, favourites, recently added, recently used, by type, category, folder (nested), tag, uncategorized, archive, trash | ⬜ (only all/favourites/category) |
-| Sort: title, updated, created, last used | ⬜ |
-| Item detail: all fields, reveal, copy, open website | ✅ (open website ⬜) |
-| Detail: password history, weak-password warning, created/modified/last used | ⬜ |
+| Views: all, favourites, recently added, recently used, by type, category, folder (nested), tag, uncategorized, archive, trash | ✅ |
+| Sort: title, updated, created, last used | ✅ |
+| Item detail: all fields, reveal, copy, open website (http/https only) | ✅ |
+| Detail: password history, created/modified/password-changed dates | ✅ (weak-password warning and last-used date ⬜) |
 | Reprompt for protected items | ✅ |
-| Create and edit all 6 item types, custom fields, tags, validation, discard-changes prompt | 🟡 |
-| Favourite, archive, trash, restore, delete forever, duplicate, move, undo toast | 🟡 |
+| Create and edit all 6 item types, custom fields, tags, validation, discard-changes prompt | ✅ (tag suggestions ⬜) |
+| Favourite, archive, trash, restore, delete forever, duplicate, undo toast | ✅ (move dialog ⬜; category/folder are set in the editor) |
 | Multi-select with bulk move/archive/trash/tag | ⬜ |
-| Trash retention, empty trash | 🟡 |
+| Trash retention (auto-purge on unlock), empty trash | ✅ |
 | Reveal timeout (re-hide secrets after N seconds) | ⬜ |
 
 ## 3. Organize [`views/OrganizeView`]

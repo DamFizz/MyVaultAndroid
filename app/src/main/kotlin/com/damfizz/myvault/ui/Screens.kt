@@ -135,7 +135,14 @@ fun AppRoot(vm: VaultViewModel) {
                 is Screen.SecondFactor -> SecondFactorScreen(vm, s)
                 Screen.Vault -> MainScreen(vm)
                 is Screen.Detail -> DetailScreen(vm, s.id)
+                Screen.Editor -> EditorScreen(vm)
             }
+        }
+        val host = LocalOverlayHost.current
+        val undo = stringResource(R.string.action_undo)
+        LaunchedEffect(vm.noticeId) {
+            val n = vm.notice ?: return@LaunchedEffect
+            if (n.undo != null) host.toast(n.message, undo, n.undo) else host.toast(n.message)
         }
         BusyOverlay(vm.busy, stringResource(R.string.busy_kdf))
     }
@@ -237,7 +244,7 @@ private fun ImportScreen(vm: VaultViewModel) = AuthPage(onBack = { vm.cancelImpo
 
 // ------------------------------------------------------------------ unlock / two-step
 
-private fun showBiometricPrompt(activity: FragmentActivity, title: String, negative: String, cipher: Cipher, onOk: (Cipher) -> Unit) {
+internal fun showBiometricPrompt(activity: FragmentActivity, title: String, negative: String, cipher: Cipher, onOk: (Cipher) -> Unit) {
     val prompt = BiometricPrompt(activity, ContextCompat.getMainExecutor(activity), object : BiometricPrompt.AuthenticationCallback() {
         override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
             result.cryptoObject?.cipher?.let(onOk)
@@ -328,241 +335,10 @@ private fun SecondFactorScreen(vm: VaultViewModel, s: Screen.SecondFactor) = Aut
     }
 }
 
-// ------------------------------------------------------------------ main (tabs)
-
-@Composable
-private fun MainScreen(vm: VaultViewModel) {
-    val tabs = listOf(
-        TabItem(Icons.Filled.Shield, stringResource(R.string.tab_vault)),
-        TabItem(Icons.Filled.Star, stringResource(R.string.vault_favorites)),
-        TabItem(Icons.Filled.Settings, stringResource(R.string.settings)),
-    )
-    val lock = stringResource(R.string.lock)
-    GlassScaffold(
-        topBar = { GlassIconButton(Icons.Filled.Lock, lock, vm::lock, Modifier.align(Alignment.CenterEnd)) },
-        bottomBar = { GlassTabBar(tabs, vm.tab, { vm.tab = it }, Modifier.fillMaxWidth()) },
-    ) { pad ->
-        AnimatedContent(
-            vm.tab,
-            transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(120)) },
-            label = "tab",
-            modifier = Modifier.fillMaxSize(),
-        ) { tab ->
-            when (tab) {
-                0 -> VaultList(vm, pad, favouritesOnly = false)
-                1 -> VaultList(vm, pad, favouritesOnly = true)
-                else -> SettingsTab(vm, pad)
-            }
-        }
-    }
-}
-
-private fun iconFor(type: String): ImageVector = when (type) {
-    ItemType.WIFI -> Icons.Filled.Wifi
-    ItemType.NOTE -> Icons.AutoMirrored.Filled.Notes
-    ItemType.LICENSE -> Icons.Filled.VpnKey
-    ItemType.RECOVERY_CODES -> Icons.Filled.Key
-    else -> Icons.Filled.Person
-}
-
-private fun subtitle(i: VaultItem): String = listOfNotNull(i.username, i.email, i.ssid, i.product, i.service, i.url)
-    .firstOrNull { it.isNotBlank() }.orEmpty()
-
-@Composable
-private fun VaultList(vm: VaultViewModel, pad: PaddingValues, favouritesOnly: Boolean) {
-    val c = LocalGlassColors.current
-    var query by rememberSaveable { mutableStateOf("") }
-    var category by rememberSaveable { mutableStateOf<String?>(null) }
-    val rev = vm.revision
-    val all = remember(rev) { vm.items().filter { it.archivedAt == null } }
-    val categories = remember(rev) { vm.collections().filter { it.kind == "category" } }
-    val shown = remember(rev, query, category, favouritesOnly) {
-        val q = query.trim().lowercase()
-        all.filter { i ->
-            (q.isEmpty() || listOfNotNull(i.title, i.username, i.email, i.url, i.ssid, i.product).any { it.lowercase().contains(q) }) &&
-                (!favouritesOnly || i.favorite) &&
-                (category == null || i.categoryId == category)
-        }.sortedWith(compareByDescending<VaultItem> { it.favorite }.thenBy { it.title.lowercase() })
-    }
-    val untitled = stringResource(R.string.untitled)
-    LazyColumn(contentPadding = pad, modifier = Modifier.fillMaxSize()) {
-        item { LargeTitle(if (favouritesOnly) stringResource(R.string.vault_favorites) else "MyVault", Modifier.padding(start = 6.dp, bottom = 12.dp)) }
-        item { GlassTextField(query, { query = it }, stringResource(R.string.vault_search), leading = Icons.Filled.Search) }
-        if (!favouritesOnly) {
-            item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 12.dp)) {
-                    item { Chip(stringResource(R.string.vault_all), category == null) { category = null } }
-                    items(categories, key = { it.id }) { cat -> Chip(cat.name, category == cat.id) { category = cat.id } }
-                }
-            }
-        } else {
-            item { Spacer(Modifier.height(12.dp)) }
-        }
-        if (shown.isEmpty()) {
-            item { Body(stringResource(R.string.vault_empty), Modifier.padding(16.dp)) }
-        }
-        itemsIndexed(shown, key = { _, it -> it.id }) { index, item ->
-            val first = index == 0
-            val last = index == shown.lastIndex
-            val shape = RoundedCornerShape(
-                topStart = if (first) 24.dp else 0.dp, topEnd = if (first) 24.dp else 0.dp,
-                bottomStart = if (last) 24.dp else 0.dp, bottomEnd = if (last) 24.dp else 0.dp,
-            )
-            Column(Modifier.fillMaxWidth().clip(shape).background(c.fill)) {
-                ListRow(
-                    title = item.title.ifBlank { untitled },
-                    subtitle = subtitle(item),
-                    leading = { IconTile(iconFor(item.type)) },
-                    onClick = { vm.go(Screen.Detail(item.id)) },
-                ) {
-                    if (item.favorite) Icon(Icons.Filled.Star, null, tint = c.star, modifier = Modifier.size(17.dp))
-                    Icon(Icons.Filled.ChevronRight, null, tint = c.text3, modifier = Modifier.size(22.dp))
-                }
-                if (!last) GroupDivider(inset = 68.dp)
-            }
-        }
-    }
-}
-
-// ------------------------------------------------------------------ item detail
-
-private fun copySensitive(context: Context, label: String, value: String) {
-    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    val clip = ClipData.newPlainText(label, value)
-    clip.description.extras = PersistableBundle().apply {
-        if (Build.VERSION.SDK_INT >= 33) putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true) else putBoolean("android.content.extra.IS_SENSITIVE", true)
-    }
-    cm.setPrimaryClip(clip)
-    Handler(Looper.getMainLooper()).postDelayed({
-        val current = cm.primaryClip?.getItemAt(0)?.text?.toString()
-        if (current == value) {
-            if (Build.VERSION.SDK_INT >= 28) cm.clearPrimaryClip() else cm.setPrimaryClip(ClipData.newPlainText("", ""))
-        }
-    }, 30_000)
-}
-
-private class FieldSpec(val label: String, val value: String, val secret: Boolean = false, val mono: Boolean = false, val multiline: Boolean = false)
-
-@Composable
-private fun DetailScreen(vm: VaultViewModel, id: String) {
-    val item = remember(vm.revision, id) { vm.item(id) }
-    val back = stringResource(R.string.back)
-    BackHandler { vm.go(Screen.Vault) }
-    if (item == null) {
-        LaunchedEffect(Unit) { vm.go(Screen.Vault) }
-        return
-    }
-    val c = LocalGlassColors.current
-    val context = LocalContext.current
-    val host = LocalOverlayHost.current
-    val copied = stringResource(R.string.detail_copied)
-    var unlockedTick by remember { mutableStateOf(0) }
-    val locked = item.reprompt && id !in vm.revealed && unlockedTick >= 0
-    var askPassword by remember { mutableStateOf(false) }
-    var pw by rememberSaveable { mutableStateOf("") }
-
-    val fields = buildList {
-        fun add(label: Int, value: String?, secret: Boolean = false, mono: Boolean = false, multiline: Boolean = false) {
-            if (!value.isNullOrBlank()) add(FieldSpec(context.getString(label), value, secret, mono, multiline))
-        }
-        add(R.string.field_username, item.username)
-        add(R.string.field_email, item.email)
-        add(R.string.field_password, item.password, secret = true)
-        add(R.string.field_url, item.url)
-        add(R.string.field_ssid, item.ssid)
-        add(R.string.field_wifi_security, item.wifiSecurity)
-        add(R.string.field_product, item.product)
-        add(R.string.field_license_key, item.licenseKey, secret = true)
-        add(R.string.field_licensee, item.licensee)
-        add(R.string.field_version, item.version)
-        add(R.string.field_purchase_date, item.purchaseDate)
-        add(R.string.field_service, item.service)
-        add(R.string.field_codes, item.codes, secret = true, mono = true, multiline = true)
-        add(R.string.field_recovery_email, item.recoveryEmail)
-        add(R.string.field_recovery_info, item.recoveryInfo, secret = true)
-        for (f in item.customFields) if (f.value.isNotBlank()) add(FieldSpec(f.label, f.value, secret = f.hidden))
-    }
-    val notes = buildList {
-        if (!item.notes.isNullOrBlank()) add(FieldSpec(context.getString(R.string.field_notes), item.notes!!, multiline = true))
-        if (!item.importantNotes.isNullOrBlank()) add(FieldSpec(context.getString(R.string.field_important_notes), item.importantNotes!!, multiline = true))
-        if (item.tags.isNotEmpty()) add(FieldSpec(context.getString(R.string.field_tags), item.tags.joinToString(", ")))
-    }
-    val onCopy = { f: FieldSpec ->
-        copySensitive(context, f.label, f.value)
-        host.toast(copied)
-    }
-
-    GlassScaffold(topBar = { GlassIconButton(Icons.AutoMirrored.Filled.ArrowBack, back, { vm.go(Screen.Vault) }, Modifier.align(Alignment.CenterStart)) }) { pad ->
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(pad), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp)) {
-                IconTile(iconFor(item.type), size = 58.dp)
-                Spacer(Modifier.width(16.dp))
-                Text(item.title.ifBlank { stringResource(R.string.untitled) }, style = Type.title, color = c.text)
-            }
-            if (locked) {
-                InsetGroup {
-                    ListRow(
-                        stringResource(R.string.detail_reprompt_title),
-                        subtitle = stringResource(R.string.detail_reprompt_body),
-                        leading = { IconTile(Icons.Filled.Lock) },
-                    )
-                }
-                GlassButton(stringResource(R.string.detail_unlock), { askPassword = true }, Modifier.fillMaxWidth(), icon = Icons.Filled.Lock)
-            }
-            if (fields.isNotEmpty()) InsetGroup { fields.forEachIndexed { i, f -> FieldRow(f, locked && f.secret, onCopy); if (i != fields.lastIndex) GroupDivider() } }
-            if (notes.isNotEmpty()) InsetGroup { notes.forEachIndexed { i, f -> FieldRow(f, false, onCopy); if (i != notes.lastIndex) GroupDivider() } }
-        }
-    }
-
-    GlassSheet(visible = askPassword, onDismiss = { askPassword = false; pw = ""; vm.clearError() }) {
-        fun submit() {
-            if (pw.isNotEmpty()) {
-                vm.reprompt(id, pw) { unlockedTick++; askPassword = false }
-                pw = ""
-            }
-        }
-        Text(stringResource(R.string.detail_reprompt_title), style = Type.headline, color = c.text)
-        Body(stringResource(R.string.detail_reprompt_body))
-        GlassTextField(pw, { pw = it }, stringResource(R.string.master_password), secret = true, onDone = ::submit)
-        ErrorText(vm.error)
-        GlassButton(stringResource(R.string.detail_unlock), ::submit, Modifier.fillMaxWidth(), enabled = pw.isNotEmpty())
-    }
-}
-
-@Composable
-private fun FieldRow(f: FieldSpec, locked: Boolean, onCopy: (FieldSpec) -> Unit) {
-    val c = LocalGlassColors.current
-    var shown by remember { mutableStateOf(false) }
-    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 6.dp, top = 10.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(f.label, style = Type.footnote, color = c.text3)
-            Text(
-                if (f.secret && (locked || !shown)) "••••••••••" else f.value,
-                style = Type.body.copy(fontFamily = if (f.secret || f.mono) FontFamily.Monospace else FontFamily.Default),
-                color = c.text,
-                maxLines = if (f.multiline) Int.MAX_VALUE else 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        if (!locked) {
-            if (f.secret) {
-                RowIconButton(
-                    if (shown) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                    stringResource(if (shown) R.string.detail_hide else R.string.detail_reveal) + " " + f.label,
-                    { shown = !shown },
-                )
-            }
-            RowIconButton(Icons.Filled.ContentCopy, stringResource(R.string.detail_copy) + " " + f.label, { onCopy(f) })
-        } else {
-            Icon(Icons.Filled.Lock, null, tint = c.text3, modifier = Modifier.padding(end = 12.dp).size(18.dp))
-        }
-    }
-}
-
 // ------------------------------------------------------------------ settings tab
 
 @Composable
-private fun SettingsTab(vm: VaultViewModel, pad: PaddingValues) {
+internal fun SettingsTab(vm: VaultViewModel, pad: PaddingValues) {
     val c = LocalGlassColors.current
     val activity = LocalContext.current as FragmentActivity
     val rev = vm.revision

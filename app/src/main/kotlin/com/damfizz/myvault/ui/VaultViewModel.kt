@@ -14,6 +14,9 @@ import com.damfizz.myvault.core.DecryptionError
 import com.damfizz.myvault.core.Encoding
 import com.damfizz.myvault.core.InvalidCodeError
 import com.damfizz.myvault.core.InvalidSecretKeyError
+import com.damfizz.myvault.core.ItemFilter
+import com.damfizz.myvault.core.Items
+import com.damfizz.myvault.core.SortBy
 import com.damfizz.myvault.core.SecretKeyRequiredError
 import com.damfizz.myvault.core.SecretKeySource
 import com.damfizz.myvault.core.StoreDeviceSecretKeys
@@ -46,6 +49,7 @@ sealed interface Screen {
     class SecondFactor(val challenge: VaultAccess.SecondFactorChallenge) : Screen
     data object Vault : Screen
     data class Detail(val id: String) : Screen
+    data object Editor : Screen
 }
 
 /** One opened backup waiting for confirmation before it replaces the vault on this phone. */
@@ -183,6 +187,8 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun opened(s: VaultSession) {
+        runCatching { Items.purgeExpiredTrash(s, System.currentTimeMillis()) }
+        filter = ItemFilter.All
         session = s
         needsSecretKey = false
         revealed.clear()
@@ -216,6 +222,7 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
     // ------------------------------------------------------------------ reads
 
     fun items(): List<VaultItem> = session?.items().orEmpty().filter { it.trashedAt == null }
+    fun vaultSettings() = session?.settings()
     fun collections(): List<VaultCollection> = session?.collections().orEmpty()
     fun item(id: String): VaultItem? = session?.getItem(id)
     fun vaultCreatedAt(): Long? = store.getHeader()?.createdAt
@@ -291,6 +298,127 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
     fun clearError() {
         error = null
     }
+
+    // ------------------------------------------------------------------ items: views, editing, actions
+
+    /** Toast request for the UI layer; [undo] puts the previous versions back. */
+    class Notice(val message: String, val undo: (() -> Unit)? = null)
+
+    var filter by mutableStateOf<ItemFilter>(ItemFilter.All)
+    var sortBy by mutableStateOf(SortBy.TITLE)
+    var notice by mutableStateOf<Notice?>(null)
+        private set
+    var noticeId by mutableStateOf(0)
+        private set
+    /** the item being edited (survives rotation) and how it looked when the editor opened */
+    var draft by mutableStateOf<VaultItem?>(null)
+    var draftInitial: VaultItem? = null
+        private set
+    var draftIsNew = false
+        private set
+
+    private fun now() = System.currentTimeMillis()
+
+    private fun notify(message: Int, before: List<VaultItem>? = null) {
+        val s = session
+        val undo: (() -> Unit)? = if (before != null && before.isNotEmpty() && s != null) {
+            { Items.undo(s, before, now()); revision++; notify(R.string.toast_undone) }
+        } else null
+        notice = Notice(str(message), undo)
+        noticeId++
+    }
+
+    fun usage(): Map<String, Long> = runCatching { session?.getDeviceSecrets()?.usage }.getOrNull().orEmpty()
+
+    fun visibleItems(filter: ItemFilter, query: String): List<VaultItem> {
+        val s = session ?: return emptyList()
+        return Items.visible(s.items(), filter, query, s.collections(), usage(), sortBy, now())
+    }
+
+    fun allTags(): List<String> = Items.allTags(session?.items().orEmpty().filter { it.trashedAt == null })
+
+    fun markUsed(id: String) {
+        runCatching { session?.markUsed(id) }
+    }
+
+    fun startNew(type: String) {
+        val s = session ?: return
+        val item = Items.newTemplate(type, s.settings(), filter, now())
+        draft = item; draftInitial = item; draftIsNew = true
+        go(Screen.Editor)
+    }
+
+    fun startEdit(id: String) {
+        val item = session?.getItem(id) ?: return
+        draft = item; draftInitial = item; draftIsNew = false
+        go(Screen.Editor)
+    }
+
+    /** Returns validation errors ("title", "url"); empty when saved. */
+    fun saveDraft(): Set<String> {
+        val s = session ?: return emptySet()
+        val item = draft ?: return emptySet()
+        val errors = Items.validate(item)
+        if (errors.isNotEmpty()) return errors
+        Items.save(s, item, now(), str(R.string.untitled))
+        revision++
+        draft = null
+        notify(R.string.toast_saved)
+        go(Screen.Detail(item.id))
+        return emptySet()
+    }
+
+    fun closeEditor() {
+        val back = draftInitial?.takeIf { !draftIsNew }?.id
+        draft = null
+        go(if (back != null) Screen.Detail(back) else Screen.Vault)
+    }
+
+    fun toggleFavorite(id: String) {
+        val s = session ?: return
+        val item = s.getItem(id) ?: return
+        Items.favorite(s, listOf(id), !item.favorite, now())
+        revision++
+    }
+
+    fun trash(ids: List<String>) {
+        val s = session ?: return
+        val before = Items.trash(s, ids, now())
+        revision++
+        notify(R.string.toast_trashed, before)
+    }
+
+    fun restore(ids: List<String>) {
+        val s = session ?: return
+        val before = Items.restore(s, ids, now())
+        revision++
+        notify(R.string.toast_restored, before)
+    }
+
+    fun archive(ids: List<String>, archived: Boolean) {
+        val s = session ?: return
+        val before = Items.archive(s, ids, archived, now())
+        revision++
+        notify(if (archived) R.string.toast_archived else R.string.toast_unarchived, before)
+    }
+
+    fun duplicate(id: String) {
+        val s = session ?: return
+        val copy = Items.duplicate(s, id, now()) ?: return
+        revision++
+        notify(R.string.toast_duplicated)
+        go(Screen.Detail(copy.id))
+    }
+
+    fun purge(ids: List<String>) {
+        val s = session ?: return
+        if (ids.isEmpty()) return
+        s.purgeItems(ids)
+        revision++
+        notify(R.string.toast_deleted)
+    }
+
+    fun trashedIds(): List<String> = session?.items().orEmpty().filter { it.trashedAt != null }.map { it.id }
 
     companion object {
         const val AUTO_LOCK_MS = 60_000L
