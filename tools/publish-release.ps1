@@ -6,10 +6,11 @@
 #   powershell -ExecutionPolicy Bypass -File tools\publish-release.ps1            # private repo
 #   powershell -ExecutionPolicy Bypass -File tools\publish-release.ps1 -Public    # public repo
 #
-# A private repo's release can only be downloaded while signed in to GitHub on the phone.
+# Use -Public if you want the app's built-in "Check for updates" to work: GitHub only shows a
+# private repository's releases to signed-in users, and the app does not sign in to GitHub.
 param(
     [string]$Repo = "DamFizz/MyVaultAndroid",
-    [string]$Version = "0.1.0-alpha",
+    [string]$Version = "0.2.1-alpha",
     [switch]$Public
 )
 $ErrorActionPreference = "Stop"
@@ -30,15 +31,16 @@ if (-not $hasOrigin) { git remote add origin "https://github.com/$Repo.git" }
 git push -u origin main
 
 $notes = @"
-MyVault for Android - early alpha (read-only).
+MyVault for Android $Version (alpha).
 
-- Import a .myvault backup from the web app (Backup -> Export), then unlock with your master password,
-  authenticator code, recovery code, recovery key, or Secret Key.
-- Biometric quick unlock (Android Keystore), auto-lock, no screenshots, clipboard auto-clear.
-- English and Bahasa Melayu.
-- Not independently audited. Editing on Android and Google Drive sync come later.
+- Liquid Glass UI; nearly every feature of the web app (see docs/PARITY.md).
+- Fingerprint / face unlock (Android Keystore, strong biometrics only), offered after the first unlock.
+- Google Drive sync with the same encrypted format as the web app (needs an Android OAuth client in
+  your Google Cloud project; the app shows the exact package name and SHA-1 to register).
+- In-app update check from this releases page.
+- Not independently audited. Keep an exported backup.
 
 SHA-256: $((Get-Content "$apk.sha256").Split(' ')[0])
 "@
-gh release create "v$Version" $apk "$apk.sha256" --repo $Repo --title "MyVault Android $Version" --notes $notes --prerelease
+gh release create "v$Version" $apk "$apk.sha256" --repo $Repo --title "MyVault Android $Version" --notes $notes --prerelease --latest
 Write-Host "Done: https://github.com/$Repo/releases/tag/v$Version"
