@@ -9,7 +9,7 @@ Legend: ✅ in the APK · 🟡 logic in `:core`, no screen yet · ⬜ not starte
 | Feature | Status |
 |---|---|
 | Create vault | ✅ (basic; needs the 3-step intro, strength meter, tips, acknowledgement) |
-| "I already have a vault": download from Google Drive | ⬜ |
+| "I already have a vault": download from Google Drive | ✅ built, untested against a real account |
 | "I already have a vault": restore a backup file | ✅ |
 | Unlock: master password, TOTP, recovery code, trust device 30 days | ✅ |
 | Unlock: Secret Key (format v2) | ✅ |
@@ -63,11 +63,11 @@ Legend: ✅ in the APK · 🟡 logic in `:core`, no screen yet · ⬜ not starte
 
 | Feature | Status |
 |---|---|
-| Three-way merge | 🟡 |
-| Sync engine: conflict copies, edit beats delete, rollback protection, retry on concurrent write, Secret Key no-downgrade | ⬜ |
-| Google sign-in, Drive appDataFolder client | ⬜ (needs the owner's Android OAuth client ID) |
-| Connect, sync now, auto-sync, switch account, disconnect, delete cloud copy | ⬜ |
-| Status pill, errors, vault-mismatch resolution (keep local / use cloud), conflict review | ⬜ |
+| Three-way merge | ✅ |
+| Sync engine: conflict copies, edit beats delete, rollback protection, retry on concurrent write, Secret Key no-downgrade | ✅ (9 tests + a cross test with the web engine) |
+| Google sign-in, Drive appDataFolder client | ✅ built; Google's sign-in screen opens on the emulator. NOT tested against a real account: needs the owner's Android OAuth client (package + SHA-1) and the Drive API enabled |
+| Connect, sync now, auto-sync, disconnect, delete cloud copy | ✅ built, untested against a real account (switch account ⬜) |
+| Status, errors, vault-mismatch resolution (keep local / use cloud), conflict review | ✅ built, untested against a real account (status pill on the list ⬜) |
 
 ## 7. Backup and restore [`views/BackupView`, `vault/backup.ts`, `lib/csv.ts`]
 
@@ -107,6 +107,16 @@ Legend: ✅ in the APK · 🟡 logic in `:core`, no screen yet · ⬜ not starte
 | Flowing selection pill, press swell, spring sheets (drag to dismiss), alerts, toasts | ✅ (popup menus growing from the touch point ⬜) |
 | Light and dark glass (follows the system) | ✅ (accent choice and reduced motion ⬜, with Settings) |
 | Jank measured (Macrobenchmark/JankStats) on the owner's phone | ⬜ |
+
+## Verified on the emulator (API 36), build 0.2.0-alpha
+
+Unlock (password, TOTP, trusted device), list, detail, reprompt sheet, create item, trash/restore/archive with undo,
+views and sort, Generator, Security center, Settings (theme switch), Organize (create category), overview,
+multi-select, Backup screen opens, Sync screen opens and launches Google's sign-in.
+
+Not exercised by hand yet: editing an existing item, custom fields, move dialog, backup export/merge/replace,
+snapshots, CSV import, Authenticator enrolment, recovery key/codes screens, Secret Key screens, change master
+password, biometric unlock, real Google Drive sync, a real phone (performance, tilt light), Android 8-12 fallbacks.
 
 ## Build order
 

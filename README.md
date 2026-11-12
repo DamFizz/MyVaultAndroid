@@ -2,10 +2,10 @@
 
 Native Android version of MyVault (Kotlin and Jetpack Compose). It uses exactly the same vault format as the web app, so one vault opens on both.
 
-> **Early alpha, read-only.**
-> - Import a `.myvault` backup from the web app and view and copy your items.
-> - Editing on Android and Google Drive sync come in later stages; see `docs/PLAN.md`.
-> - **Not independently audited.**
+> **Alpha.**
+> - Nearly every feature of the web app is ported (see `docs/PARITY.md` for the checklist and what is still untested).
+> - Google Drive sync is built but has not been tested against a real Google account yet.
+> - **Not independently audited.** Keep an exported backup.
 
 ## Install (Android 8.0+)
 
@@ -18,12 +18,14 @@ Later versions install over this one because every release is signed with the sa
 
 ## What is in this build
 
-- Unlock with master password, the Authenticator code (with "trust this phone for 30 days"), recovery codes, or the emergency recovery key.
-- Secret Key (format v2) supported when unlocking.
-- Biometric quick unlock: an Android Keystore key, STRONG biometrics, reset when fingerprints change. The Authenticator code is still required unless the phone is trusted.
-- Vault list with search, favourites and categories. Item details with reveal/copy. The clipboard is marked sensitive and cleared after 30 s. Protected items ask for the master password.
-- Locks 1 minute after leaving the app, blocks screenshots (release builds), and is excluded from Google backups.
-- English and Bahasa Melayu (follows the phone language).
+- Liquid Glass UI: live backdrop blur (Android 12+), edge refraction and a light that follows tilt (Android 13+).
+- Vault: all six item types, editor, favourites, archive, trash with undo, multi-select, views, search, sort.
+- Organize categories and nested folders; password generator; security center with an opt-in breach check.
+- Settings: theme, accent, language, lock and clipboard timers, vault settings, change master password,
+  Authenticator with QR, recovery codes and key, Secret Key (format v2), biometric unlock.
+- Backup export, merge or replace restore, safety snapshots, CSV import from other password managers.
+- Google Drive sync (appDataFolder) with the same three-way merge as the web app.
+- English and Bahasa Melayu.
 
 ## Project layout
 
