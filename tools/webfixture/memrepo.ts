@@ -26,3 +26,16 @@ export class MemRepo {
 
   asRepo(): VaultRepository { return this as unknown as VaultRepository; }
 }
+
+/** Minimal in-memory "Drive" for sync round-trip tests. */
+export class MemRemote {
+  content: string | null = null;
+  version = 0;
+  async find() { return this.content === null ? null : { id: 'f1', version: String(this.version) }; }
+  async getMeta(id: string) { return id === 'f1' && this.content !== null ? { id, version: String(this.version) } : null; }
+  async download() { return this.content!; }
+  async create(content: string) { this.content = content; this.version = 1; return { id: 'f1', version: '1' }; }
+  async update(_id: string, content: string) { this.content = content; this.version++; return { id: 'f1', version: String(this.version) }; }
+  async rename() { /* unused */ }
+  async remove() { this.content = null; }
+}

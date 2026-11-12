@@ -12,7 +12,11 @@ import { generateSecretKey } from '@web/vault/keys';
 import { openBackup } from '@web/vault/backup';
 import { parseSyncFile } from '@web/sync/format';
 import type { VaultSession } from '@web/vault/session';
-import { MemRepo } from './memrepo';
+import { MemRepo, MemRemote } from './memrepo';
+import { SyncEngine } from '@web/sync/engine';
+import { downloadVaultToDevice } from '@web/sync/bootstrap';
+import { emptyItem } from '@web/vault/types';
+import type { RemoteStore } from '@web/sync/remote';
 
 const fx = JSON.parse(readFileSync(path.resolve(import.meta.dirname, 'out/kotlin-vault.json'), 'utf8'));
 
@@ -124,6 +128,41 @@ describe('Secret Key (format v2) vault created by the Android core', () => {
     const again = new MemRepo();
     await again.replaceVault((await repo.getHeader())!, await repo.allRecords());
     expect((await unlockWithPassword(again.asRepo(), v.password)).type).toBe('unlocked');
+  });
+});
+
+describe('sync round trip: web device ↔ Android sync engine on the same cloud file', () => {
+  const v = fx.syncRoundTrip;
+
+  test('the web engine pulls what the Android engine pushed, with no conflicts, and can push back', async () => {
+    // A web device that already had the vault (its sync base is the original file).
+    const remote = new MemRemote();
+    await remote.create(v.originalSyncFile);
+    const repo = new MemRepo();
+    await downloadVaultToDevice(repo.asRepo(), remote as unknown as RemoteStore);
+    const session = await unlockWithTotp(repo, v.password, v.totpSecret);
+    expect(session.getItem('from-android-sync')).toBeUndefined();
+
+    // The Android engine has written the cloud file in the meantime.
+    remote.content = v.remoteAfterKotlin;
+    remote.version++;
+    const report = await new SyncEngine(session, remote as unknown as RemoteStore).sync();
+    expect(report.conflicts).toEqual([]);
+    expect(report.skippedCorrupt).toBe(0);
+    expect(report.pulled).toBeGreaterThanOrEqual(3);
+    expect(session.corruptedIds).toEqual([]);
+    expect(session.getItem('from-android-sync')?.title).toBe('Ditambah oleh sync Android');
+    expect(session.getItem('item-wifi')?.notes).toBe('disunting oleh enjin sync Android');
+    expect(session.getItem('item-license')).toBeUndefined();
+    expect((session.getItem('item-login') as any).futureField).toEqual({ nested: [1, 2, 3], flag: true });
+
+    // Nothing left to do; then a web edit goes back up and the file stays valid.
+    const again = await new SyncEngine(session, remote as unknown as RemoteStore).sync();
+    expect(again.pulled + again.pushed).toBe(0);
+    await session.saveItem({ ...emptyItem('note', 'web-after-android', Date.now()), title: 'Web selepas Android' });
+    const push = await new SyncEngine(session, remote as unknown as RemoteStore).sync();
+    expect(push.pushed).toBe(1);
+    expect(parseSyncFile(remote.content!).records.some((r) => r.id === 'web-after-android')).toBe(true);
   });
 });
 

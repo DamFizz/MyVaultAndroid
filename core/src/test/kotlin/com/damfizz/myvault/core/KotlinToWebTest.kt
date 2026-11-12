@@ -141,6 +141,38 @@ class KotlinToWebTest {
         }
     }
 
+    /**
+     * The Kotlin sync engine joins the web's cloud file as a second device: it downloads the web
+     * vault, edits, and syncs. The web engine must then pull those changes without conflicts.
+     */
+    private fun kotlinSyncsWebCloud(): JsonObject {
+        val fx = Fixtures.web
+        val clock = Clock { fx.num("generatedAt") + 60_000 }
+        val remote = MemoryRemote()
+        remote.create(fx.str("syncFile"))
+        val store = InMemoryVaultStore()
+        SyncEngine.downloadToDevice(store, remote, now = clock.now())
+        val access = VaultAccess(store, clock, "Android phone")
+        val session = assertIs<UnlockStep.SecondFactor>(access.unlockWithPassword(fx.str("password"))).challenge
+            .verifyTotp(Totp.totp(fx.str("totpSecret"), clock.now()))
+        val first = SyncEngine(session, remote, clock).sync()
+        assertEquals(0, first.pulled + first.pushed, "nothing to do right after download")
+
+        val now = clock.now()
+        Items.save(session, VaultItem.empty(ItemType.LOGIN, "from-android-sync", now).copy(title = "Ditambah oleh sync Android", password = "sync-✓"), now)
+        Items.save(session, session.getItem("item-wifi")!!.copy(notes = "disunting oleh enjin sync Android"), now)
+        session.purgeItems(listOf("item-license"))
+        val r = SyncEngine(session, remote, clock).sync()
+        assertTrue(r.pushed >= 3)
+        assertTrue(r.conflicts.isEmpty())
+        return buildJsonObject {
+            put("originalSyncFile", fx.str("syncFile"))
+            put("remoteAfterKotlin", remote.only().content)
+            put("password", fx.str("password"))
+            put("totpSecret", fx.str("totpSecret"))
+        }
+    }
+
     @Test
     fun `write Kotlin-made vaults for the web verifier`() {
         val out = buildJsonObject {
@@ -149,6 +181,7 @@ class KotlinToWebTest {
             put("created", createdByKotlin())
             put("createdV2", createdV2ByKotlin())
             put("editedWeb", editedWebVault())
+            put("syncRoundTrip", kotlinSyncsWebCloud())
         }
         val file = File(Fixtures.outDir(), "kotlin-vault.json")
         file.writeText(VaultJson.json.encodeToString(JsonObject.serializer(), out), Charsets.UTF_8)
