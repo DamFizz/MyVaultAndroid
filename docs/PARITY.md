@@ -75,11 +75,11 @@ Legend: ✅ in the APK · 🟡 logic in `:core`, no screen yet · ⬜ not starte
 |---|---|
 | Open a backup (verify, show info) | ✅ |
 | Restore: replace | ✅ |
-| Restore: merge ("restored copy", nothing overwritten) | ⬜ |
-| Export encrypted backup (master or separate password) | 🟡 |
-| Safety snapshots before destructive operations; list and restore them | ⬜ |
-| CSV import (Bitwarden, Chrome/Edge, Firefox, 1Password, LastPass, KeePass, Proton Pass, generic) | ⬜ |
-| Last-backup date and backup reminder | ⬜ |
+| Restore: merge ("restored copy", nothing overwritten) | ✅ |
+| Export encrypted backup (master or separate password) | ✅ |
+| Safety snapshots before destructive operations; list, restore, delete | ✅ |
+| CSV import (Bitwarden, Chrome/Edge, Firefox, 1Password, LastPass, KeePass, Proton Pass, generic) | ✅ |
+| Last-backup date | ✅ (reminder ⬜) |
 
 ## 8. Settings [`views/SettingsView`, `state/prefs*.ts`, `state/autolock.ts`]
 

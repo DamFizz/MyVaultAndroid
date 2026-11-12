@@ -294,6 +294,10 @@ internal fun SettingsTab(vm: VaultViewModel, pad: PaddingValues) {
 
         SectionHeader(stringResource(R.string.set_data))
         InsetGroup {
+            ListRow(stringResource(R.string.bk_title), leading = { IconTile(Icons.Filled.Backup, 34.dp) }, onClick = { vm.go(Screen.BackupRestore) }) {
+                Icon(Icons.Filled.ChevronRight, null, tint = c.text3, modifier = Modifier.size(22.dp))
+            }
+            GroupDivider(64.dp)
             ValueRow(stringResource(R.string.set_device_name), vm.deviceName()) { sheet = "device" }
         }
         Footnote(stringResource(R.string.set_storage, vm.recordCount()), Modifier.padding(horizontal = 16.dp))

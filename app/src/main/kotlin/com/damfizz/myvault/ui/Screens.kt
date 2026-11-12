@@ -137,6 +137,7 @@ fun AppRoot(vm: VaultViewModel) {
                 is Screen.Detail -> DetailScreen(vm, s.id)
                 Screen.Editor -> EditorScreen(vm)
                 Screen.Organize -> OrganizeScreen(vm)
+                Screen.BackupRestore -> BackupScreen(vm)
             }
         }
         val host = LocalOverlayHost.current

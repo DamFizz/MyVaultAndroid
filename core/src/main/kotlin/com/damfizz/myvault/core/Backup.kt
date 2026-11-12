@@ -96,4 +96,112 @@ object Backup {
             throw CorruptBackupError()
         }
     }
+
+    // ------------------------------------------------------------------ restore
+
+    /** Encrypted safety copy taken before a destructive operation (web: db.ts Snapshot). */
+    class Snapshot(val id: String, val createdAt: Long, val reason: String, val header: VaultHeader, val records: List<EncryptedRecord>)
+
+    interface SnapshotStore {
+        fun createSnapshot(reason: String, keep: Int = 5): Snapshot?
+        fun listSnapshots(): List<Snapshot>
+        fun deleteSnapshot(id: String)
+    }
+
+    class MergeResult(val added: Int, val copies: Int, val skipped: Int, val collectionsAdded: Int)
+
+    /**
+     * Decrypt the records of a backup (possibly of another vault) with ITS master password, and its
+     * Secret Key when it has one. Records that fail authentication are skipped.
+     */
+    fun decryptForImport(backup: Opened, password: String, secretKey: String? = null): List<RecordPayload> {
+        val h = backup.header
+        val kek = if (h.secretKey != null) {
+            val raw = SecretKeys.parse(secretKey ?: throw SecretKeyRequiredError(h.vaultId)).raw
+            if (SecretKeys.id(raw, h.vaultId) != h.secretKey.id) throw WrongSecretKeyError()
+            SecretKeys.passwordSecretKek(password, h.kdf, h.vaultId, raw)
+        } else {
+            Keys.passwordKek(password, h.kdf, h.vaultId)
+        }
+        val vk = try {
+            Keys.unwrapVaultKey(kek, h.passwordWrap, h.vaultId, if (h.secretKey != null) WrapPurpose.PASSWORD_SK else WrapPurpose.PASSWORD)
+        } catch (e: DecryptionError) {
+            throw WrongPasswordError("Incorrect master password for this backup")
+        }
+        val keys = Keys.deriveVaultKeys(vk, h.vaultId)
+        Encoding.wipe(vk)
+        return backup.records.mapNotNull { r ->
+            try {
+                RecordPayload(Crypto.openJson(keys.records, r.sealed, Aad.record(h.vaultId, r.id, r.rev, r.vtag)) as JsonObject)
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }
+
+    /**
+     * Merge a backup into the unlocked vault: missing items are added, identical ones skipped, and
+     * differing versions are added as "(restored copy)" so nothing is ever overwritten.
+     */
+    fun restoreMerge(session: VaultSession, backup: Opened, backupMasterPassword: String, backupSecretKey: String?, now: Long): MergeResult {
+        val payloads = decryptForImport(backup, backupMasterPassword, backupSecretKey)
+        val existingItems = session.items().associateBy { it.id }
+        val existingCollections = session.collections().associateBy { it.id }
+        val byName = session.collections().associate { "${it.kind}:${it.name.lowercase()}" to it.id }
+        val idMap = HashMap<String, String>()
+        val saveCollections = mutableListOf<VaultCollection>()
+        val saveItems = mutableListOf<VaultItem>()
+        var added = 0
+        var copies = 0
+        var skipped = 0
+
+        for (p in payloads) {
+            val c = p.collection() ?: continue
+            if (c.id in existingCollections) continue
+            val same = byName["${c.kind}:${c.name.lowercase()}"]
+            if (same != null) {
+                idMap[c.id] = same
+                continue
+            }
+            saveCollections += c.copy(updatedAt = now)
+        }
+        fun remap(id: String?) = id?.let { idMap[it] ?: it }
+        fun comparable(i: VaultItem) = JsonObject(i.toJson() - "updatedAt")
+
+        for (p in payloads) {
+            val src = p.item() ?: continue
+            val item = src.copy(categoryId = remap(src.categoryId), sectionId = remap(src.sectionId))
+            val existing = existingItems[item.id]
+            when {
+                existing == null -> {
+                    saveItems += item.copy(updatedAt = now)
+                    added++
+                }
+                comparable(existing) == comparable(item) -> skipped++
+                else -> {
+                    saveItems += item.copy(id = Encoding.randomId(), title = "${item.title.ifEmpty { "Untitled" }} (restored copy)", updatedAt = now)
+                    copies++
+                }
+            }
+        }
+        if (saveCollections.isNotEmpty()) session.saveCollections(saveCollections)
+        if (saveItems.isNotEmpty()) session.saveItems(saveItems)
+        return MergeResult(added, copies, skipped, saveCollections.size)
+    }
+
+    /**
+     * Replace the local vault with the backup after taking a safety snapshot. The app must then lock;
+     * the user unlocks with the backup's master password.
+     */
+    fun restoreReplace(store: VaultStore, snapshots: SnapshotStore?, backup: Opened) {
+        val current = store.getHeader()
+        if (current != null) snapshots?.createSnapshot("before-restore")
+        val clear = when {
+            current == null -> emptyList()
+            // Same vault: keep device secrets but reset sync bookkeeping so the next sync does a full merge.
+            current.vaultId == backup.header.vaultId -> listOf("sync:${current.vaultId}")
+            else -> listOf("sync:${current.vaultId}", "secrets:${current.vaultId}", "quickUnlock:${current.vaultId}")
+        }
+        store.replaceVault(backup.header, backup.records, clear)
+    }
 }

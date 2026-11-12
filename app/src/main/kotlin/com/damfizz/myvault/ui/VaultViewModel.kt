@@ -54,6 +54,7 @@ sealed interface Screen {
     data class Detail(val id: String) : Screen
     data object Editor : Screen
     data object Organize : Screen
+    data object BackupRestore : Screen
 }
 
 /** One opened backup waiting for confirmation before it replaces the vault on this phone. */
@@ -463,6 +464,78 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
         Items.save(s, item.copy(password = password), now(), str(R.string.untitled))
         revision++
         notice = Notice(str(R.string.gen_saved_to, item.title)); noticeId++
+    }
+
+    // ------------------------------------------------------------------ backup, restore, snapshots, CSV
+
+    fun lastBackupAt(): Long? = runCatching { session?.getDeviceSecrets()?.lastBackupAt }.getOrNull()
+
+    /** Build the encrypted .myvault text; [separatePassword] null = protect with the master password. */
+    fun exportBackup(masterPassword: String, separatePassword: String?, onReady: (String) -> Unit) = work {
+        val s = session ?: return@work
+        if (separatePassword != null && separatePassword.length < 10) { error = str(R.string.err_password_short); return@work }
+        val text = timedKdf {
+            access.verifyMasterPassword(s, masterPassword)
+            Backup.create(s.header, s.encryptedRecords(), separatePassword ?: masterPassword, "android-" + (appVersion ?: "?"))
+        }
+        onReady(text)
+    }
+
+    fun backupSaved() {
+        val s = session ?: return
+        runCatching { s.setDeviceSecrets(s.getDeviceSecrets().copy(lastBackupAt = now())) }
+        revision++
+        notice = Notice(str(R.string.bk_exported)); noticeId++
+    }
+
+    private val appVersion: String? = runCatching { app.packageManager.getPackageInfo(app.packageName, 0).versionName }.getOrNull()
+
+    var openedBackup by mutableStateOf<Backup.Opened?>(null)
+        private set
+
+    fun openBackupForRestore(text: String, backupPassword: String) = work {
+        openedBackup = timedKdf { Backup.open(text, backupPassword) }
+    }
+
+    fun closeOpenedBackup() {
+        openedBackup = null
+    }
+
+    fun mergeBackup(masterOfBackup: String, secretKeyOfBackup: String?) = work {
+        val s = session ?: return@work
+        val b = openedBackup ?: return@work
+        val r = timedKdf { Backup.restoreMerge(s, b, masterOfBackup, secretKeyOfBackup?.takeIf { it.isNotBlank() }, now()) }
+        openedBackup = null
+        revision++
+        notice = Notice(str(R.string.bk_merged, r.added, r.copies, r.skipped)); noticeId++
+    }
+
+    fun replaceWithBackup() {
+        val b = openedBackup ?: return
+        Backup.restoreReplace(store, store, b)
+        openedBackup = null
+        lock()
+    }
+
+    fun snapshots(): List<Backup.Snapshot> = store.listSnapshots()
+
+    fun restoreSnapshot(id: String) {
+        val snap = store.listSnapshots().find { it.id == id } ?: return
+        store.createSnapshot("before-restore")
+        store.replaceVault(snap.header, snap.records, listOf("sync:${snap.header.vaultId}"))
+        lock()
+    }
+
+    fun deleteSnapshot(id: String) {
+        store.deleteSnapshot(id)
+        revision++
+    }
+
+    fun importCsv(preview: com.damfizz.myvault.core.Csv.Preview) {
+        val s = session ?: return
+        val n = com.damfizz.myvault.core.Csv.import(s, preview, now())
+        revision++
+        notice = Notice(str(R.string.csv_done, n)); noticeId++
     }
 
     // ------------------------------------------------------------------ organize
