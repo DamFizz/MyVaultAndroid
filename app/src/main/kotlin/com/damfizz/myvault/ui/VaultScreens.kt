@@ -124,12 +124,12 @@ private fun filterLabel(filter: ItemFilter, collections: List<VaultCollection>):
 
 /** A sheet body that scrolls when it is taller than the screen allows. */
 @Composable
-private fun SheetList(content: @Composable ColumnScope.() -> Unit) {
+internal fun SheetList(content: @Composable ColumnScope.() -> Unit) {
     Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
 }
 
 @Composable
-private fun CheckMark(on: Boolean) {
+internal fun CheckMark(on: Boolean) {
     if (on) Icon(Icons.Filled.Check, null, tint = LocalGlassColors.current.accent, modifier = Modifier.size(20.dp))
 }
 
@@ -139,7 +139,8 @@ private fun CheckMark(on: Boolean) {
 internal fun MainScreen(vm: VaultViewModel) {
     val tabs = listOf(
         TabItem(Icons.Filled.Shield, stringResource(R.string.tab_vault)),
-        TabItem(Icons.Filled.Star, stringResource(R.string.vault_favorites)),
+        TabItem(Icons.Filled.Password, stringResource(R.string.tab_generator)),
+        TabItem(Icons.Filled.HealthAndSafety, stringResource(R.string.tab_security)),
         TabItem(Icons.Filled.Settings, stringResource(R.string.settings)),
     )
     val lock = stringResource(R.string.lock)
@@ -148,7 +149,7 @@ internal fun MainScreen(vm: VaultViewModel) {
     GlassScaffold(
         topBar = {
             Row(Modifier.align(Alignment.CenterEnd), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (vm.tab != 2) GlassIconButton(Icons.Filled.Add, add, { chooseType = true })
+                if (vm.tab == 0) GlassIconButton(Icons.Filled.Add, add, { chooseType = true })
                 GlassIconButton(Icons.Filled.Lock, lock, vm::lock)
             }
         },
@@ -157,7 +158,8 @@ internal fun MainScreen(vm: VaultViewModel) {
         AnimatedContent(vm.tab, transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(120)) }, label = "tab", modifier = Modifier.fillMaxSize()) { tab ->
             when (tab) {
                 0 -> VaultList(vm, pad, favouritesOnly = false)
-                1 -> VaultList(vm, pad, favouritesOnly = true)
+                1 -> GeneratorTab(vm, pad)
+                2 -> SecurityTab(vm, pad)
                 else -> SettingsTab(vm, pad)
             }
         }
@@ -240,6 +242,7 @@ private fun VaultList(vm: VaultViewModel, pad: PaddingValues, favouritesOnly: Bo
             }
             InsetGroup {
                 Row(stringResource(R.string.vault_all), Icons.Filled.Shield, ItemFilter.All); GroupDivider(62.dp)
+                Row(stringResource(R.string.vault_favorites), Icons.Filled.Star, ItemFilter.Favorites); GroupDivider(62.dp)
                 Row(stringResource(R.string.nav_recent_added), Icons.Filled.AddCircle, ItemFilter.RecentAdded); GroupDivider(62.dp)
                 Row(stringResource(R.string.nav_recent_used), Icons.Filled.History, ItemFilter.RecentUsed)
             }

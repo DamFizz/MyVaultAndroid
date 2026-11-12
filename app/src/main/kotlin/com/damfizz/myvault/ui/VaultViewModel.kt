@@ -10,6 +10,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.damfizz.myvault.R
 import com.damfizz.myvault.core.Backup
+import com.damfizz.myvault.core.BreachCheck
+import com.damfizz.myvault.core.ItemType
+import com.damfizz.myvault.core.SecurityAnalysis
 import com.damfizz.myvault.core.DecryptionError
 import com.damfizz.myvault.core.Encoding
 import com.damfizz.myvault.core.InvalidCodeError
@@ -65,7 +68,7 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
 
     var screen by mutableStateOf<Screen>(if (store.getHeader() == null) Screen.Welcome else Screen.Unlock)
         private set
-    /** selected tab on the main screen: 0 vault, 1 favourites, 2 settings */
+    /** selected tab on the main screen: 0 vault, 1 generator, 2 security, 3 settings */
     var tab by mutableStateOf(0)
     var busy by mutableStateOf(false)
         private set
@@ -200,6 +203,8 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
         (screen as? Screen.SecondFactor)?.challenge?.cancel()
         session?.lock()
         session = null
+        breached = null
+        draft = null
         revealed.clear()
         needsSecretKey = store.getHeader()?.let { !access.hasSecretKeyOnDevice(it) } ?: false
         screen = if (store.getHeader() == null) Screen.Welcome else Screen.Unlock
@@ -419,6 +424,78 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun trashedIds(): List<String> = session?.items().orEmpty().filter { it.trashedAt != null }.map { it.id }
+
+    // ------------------------------------------------------------------ generator
+
+    fun newLoginWithPassword(password: String) {
+        val s = session ?: return
+        val item = Items.newTemplate(ItemType.LOGIN, s.settings(), ItemFilter.All, now())
+        draft = item.copy(password = password); draftInitial = item; draftIsNew = true
+        go(Screen.Editor)
+    }
+
+    fun replacePassword(id: String, password: String) {
+        val s = session ?: return
+        val item = s.getItem(id) ?: return
+        Items.save(s, item.copy(password = password), now(), str(R.string.untitled))
+        revision++
+        notice = Notice(str(R.string.gen_saved_to, item.title)); noticeId++
+    }
+
+    fun logins(): List<VaultItem> = items().filter { it.type == ItemType.LOGIN && it.archivedAt == null }.sortedBy { it.title.lowercase() }
+
+    // ------------------------------------------------------------------ security center
+
+    fun securityReport(): SecurityAnalysis.Report? {
+        val s = session ?: return null
+        return SecurityAnalysis.analyze(s.items(), s.settings().oldPasswordDays, now())
+    }
+
+    /** id → times seen in breach lists (only entries > 0); null until a check has finished */
+    var breached by mutableStateOf<Map<String, Int>?>(null)
+        private set
+    var breachProgress by mutableStateOf<Pair<Int, Int>?>(null)
+        private set
+    var breachError by mutableStateOf<String?>(null)
+        private set
+
+    fun runBreachCheck() {
+        val s = session ?: return
+        if (breachProgress != null) return
+        val byPassword = s.items().filter { it.trashedAt == null && it.archivedAt == null && !it.password.isNullOrEmpty() }.groupBy { it.password!! }
+        breachError = null
+        breachProgress = 0 to byPassword.size
+        viewModelScope.launch {
+            try {
+                val found = HashMap<String, Int>()
+                var done = 0
+                for ((password, group) in byPassword) {
+                    val n = withContext(Dispatchers.IO) { BreachCheck.pwnedCount(password, ::fetchPwnedRange) }
+                    if (n > 0) for (i in group) found[i.id] = n
+                    breachProgress = ++done to byPassword.size
+                }
+                breached = found
+            } catch (e: Exception) {
+                breachError = e.message ?: e.javaClass.simpleName
+            } finally {
+                breachProgress = null
+            }
+        }
+    }
+
+    private fun fetchPwnedRange(prefix: String): String {
+        val c = java.net.URL(BreachCheck.URL_PREFIX + prefix).openConnection() as javax.net.ssl.HttpsURLConnection
+        try {
+            c.connectTimeout = 15_000
+            c.readTimeout = 15_000
+            c.useCaches = false
+            c.setRequestProperty("Add-Padding", "true")
+            if (c.responseCode != 200) throw java.io.IOException("HTTP ${c.responseCode}")
+            return c.inputStream.bufferedReader().use { it.readText() }
+        } finally {
+            c.disconnect()
+        }
+    }
 
     companion object {
         const val AUTO_LOCK_MS = 60_000L

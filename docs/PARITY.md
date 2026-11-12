@@ -47,17 +47,17 @@ Legend: ✅ in the APK · 🟡 logic in `:core`, no screen yet · ⬜ not starte
 
 | Feature | Status |
 |---|---|
-| Password: length, character classes, exclude ambiguous, avoid repeats | ⬜ |
-| Passphrase: BIP-39 words, separator, capitalize, number | ⬜ |
-| Strength meter with entropy bits and warnings | ⬜ |
-| Save to a new login or replace an existing login's password (history kept) | ⬜ |
+| Password: length, character classes, exclude ambiguous, avoid repeats | ✅ |
+| Passphrase: BIP-39 words, separator, capitalize, number | ✅ |
+| Strength meter with entropy bits | ✅ (same scores as the web for 36 samples; warning texts ⬜) |
+| Save to a new login or replace an existing login's password (history kept) | ✅ |
 
 ## 5. Security center [`views/SecurityView`, `lib/security-analysis.ts`, `lib/hibp.ts`]
 
 | Feature | Status |
 |---|---|
-| Score and summary; weak, reused, duplicate, old passwords; missing URL/login; uncategorized | ⬜ |
-| Breach check (Have I Been Pwned k-anonymity, opt-in) | ⬜ |
+| Score and summary; weak, reused, duplicate, old passwords; missing URL/login; uncategorized | ✅ (report identical to the web's on a fixture) |
+| Breach check (Have I Been Pwned k-anonymity, opt-in) | ✅ (logic tested offline; live request not exercised in testing) |
 
 ## 6. Sync [`screens/SyncView`, `sync/*`, `state/sync-controller.ts`]
 
