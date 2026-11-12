@@ -95,7 +95,7 @@
     <string name="settings_trust">Dua langkah dilangkau di telefon ini sehingga %1$s</string>
     <string name="settings_trust_forget">Minta kod semula</string>
     <string name="settings_secret_key_on">Secret Key: hidup</string>
-    <string name="settings_secret_key_off">Secret Key: mati (hidupkan dari app web bila ia dilancarkan)</string>
+    <string name="settings_secret_key_off">Secret Key: mati</string>
     <string name="settings_recovery_yes">Kunci pemulihan kecemasan: ada</string>
     <string name="settings_recovery_no">Kunci pemulihan kecemasan: belum ada</string>
     <string name="settings_kdf">Terbitan kunci Argon2id terakhir: %1$d ms</string>
@@ -378,4 +378,28 @@
     <string name="csv_import">Import %1$d item</string>
     <string name="csv_done">%1$d item diimport dan disulitkan. Sekarang padam fail CSV dari telefon anda.</string>
     <string name="csv_ack">Saya faham fail ini tidak disulitkan dan saya akan padamnya selepas import</string>
+    <string name="sel_count">%1$d dipilih</string>
+    <string name="sel_move">Pindah</string>
+    <string name="sel_move_title">Pindah %1$d item</string>
+    <string name="sel_keep">Kekalkan</string>
+    <string name="sel_hint">Tekan dan tahan item untuk pilih beberapa.</string>
+    <string name="toast_moved">Dipindah</string>
+    <string name="dash_security">Skor keselamatan %1$d</string>
+    <string name="dash_security_sub">%1$d lemah · %2$d diguna semula</string>
+    <string name="dash_corrupted">%1$d rekod tidak dapat dinyahsulit (rosak atau diubah). Ia dibiarkan; pulih dari backup jika ada item hilang.</string>
+    <string name="dash_backup_due">Sudah lama sejak backup terakhir anda. Eksport satu sekarang.</string>
+    <string name="dash_weak">Kata laluan ini lemah atau biasa. Pertimbangkan menjana yang lebih kuat.</string>
+    <string name="sk_title">Secret Key</string>
+    <string name="sk_explain">Kunci 128-bit yang disimpan hanya di peranti anda dan dalam Emergency Kit. Bila hidup, sesiapa yang mencuri salinan awan atau backup anda tidak boleh buka vault walaupun dengan kata laluan induk.</string>
+    <string name="sk_needs_recovery">Cipta kunci pemulihan kecemasan dahulu, supaya vault tidak mungkin hilang.</string>
+    <string name="sk_web_warning">Peranti lain akan minta Secret Key ini pada buka kunci seterusnya. App web mesti dikemas kini ke versi yang menyokongnya sebelum anda hidupkan, jika tidak ia berhenti sync.</string>
+    <string name="sk_turn_on">Hidupkan Secret Key</string>
+    <string name="sk_rotate">Ganti dengan Secret Key baharu</string>
+    <string name="sk_turn_off">Matikan Secret Key</string>
+    <string name="sk_show">Tunjuk Secret Key (tambah peranti)</string>
+    <string name="sk_kit_title">Emergency Kit</string>
+    <string name="sk_kit_body">Tulis atau simpan di tempat selamat yang BUKAN Google Drive anda. Imbas kod QR dari peranti lain anda, atau taip kuncinya.</string>
+    <string name="sk_confirm_last4">Taip 4 aksara terakhir untuk sahkan anda sudah simpan</string>
+    <string name="sk_enabled">Secret Key dihidupkan</string>
+    <string name="sk_disabled">Secret Key dimatikan</string>
 </resources>

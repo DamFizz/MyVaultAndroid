@@ -6,6 +6,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -223,6 +224,7 @@ fun ListRow(
     leading: (@Composable () -> Unit)? = null,
     onClick: (() -> Unit)? = null,
     titleColor: Color = LocalGlassColors.current.text,
+    onLongClick: (() -> Unit)? = null,
     trailing: (@Composable RowScope.() -> Unit)? = null,
 ) {
     val c = LocalGlassColors.current
@@ -232,7 +234,11 @@ fun ListRow(
         modifier
             .fillMaxWidth()
             .background(if (pressed) c.pill else Color.Transparent)
-            .then(if (onClick != null) Modifier.clickable(interactionSource = source, indication = null, onClick = onClick) else Modifier)
+            .then(
+                if (onClick != null && onLongClick != null) Modifier.combinedClickable(interactionSource = source, indication = null, onLongClick = onLongClick, onClick = onClick)
+                else if (onClick != null) Modifier.clickable(interactionSource = source, indication = null, onClick = onClick)
+                else Modifier,
+            )
             .padding(horizontal = 16.dp, vertical = 12.dp)
             .defaultMinSize(minHeight = 30.dp),
         verticalAlignment = Alignment.CenterVertically,

@@ -244,7 +244,9 @@ internal fun SettingsTab(vm: VaultViewModel, pad: PaddingValues) {
                 onClick = { sheet = "rk" },
             ) { Icon(Icons.Filled.ChevronRight, null, tint = c.text3, modifier = Modifier.size(22.dp)) }
             GroupDivider(64.dp)
-            ListRow(stringResource(if (vm.hasSecretKeyMode()) R.string.settings_secret_key_on else R.string.settings_secret_key_off), leading = { IconTile(Icons.Filled.Key, 34.dp) })
+            ListRow(stringResource(if (vm.hasSecretKeyMode()) R.string.settings_secret_key_on else R.string.settings_secret_key_off), leading = { IconTile(Icons.Filled.Key, 34.dp) }, onClick = { sheet = "sk" }) {
+                Icon(Icons.Filled.ChevronRight, null, tint = c.text3, modifier = Modifier.size(22.dp))
+            }
             GroupDivider(64.dp)
             ListRow(
                 stringResource(R.string.settings_biometric),
@@ -395,6 +397,49 @@ internal fun SettingsTab(vm: VaultViewModel, pad: PaddingValues) {
         GlassButton(stringResource(R.string.detail_copy), { copySensitive(context, "recovery", text, prefs.clipboardClearSeconds); host.toast(copied) }, Modifier.fillMaxWidth(), prominent = false, icon = Icons.Filled.ContentCopy)
         InsetGroup { ToggleRow(stringResource(R.string.set_saved_ack), ack, { ack = it }) }
         GlassButton(stringResource(R.string.action_done), { vm.reveal = null }, Modifier.fillMaxWidth(), enabled = ack)
+    }
+
+    // ---- Secret Key (format v2)
+    GlassSheet(sheet == "sk", ::close) {
+        Text(stringResource(R.string.sk_title), style = Type.headline, color = c.text)
+        Body(stringResource(R.string.sk_explain))
+        if (vm.hasSecretKeyMode()) {
+            GlassButton(stringResource(R.string.sk_show), { sheet = "skShow" }, Modifier.fillMaxWidth(), icon = Icons.Filled.QrCode)
+            GlassButton(stringResource(R.string.sk_rotate), { vm.prepareSecretKey(); sheet = "skKit" }, Modifier.fillMaxWidth(), prominent = false)
+            GlassButton(stringResource(R.string.sk_turn_off), { sheet = "skOff" }, Modifier.fillMaxWidth(), prominent = false, destructive = true)
+        } else if (!vm.hasRecoveryKey()) {
+            Footnote(stringResource(R.string.sk_needs_recovery), color = c.danger)
+            GlassButton(stringResource(R.string.set_recovery_key_create), { sheet = "rkCreate" }, Modifier.fillMaxWidth())
+        } else {
+            Footnote(stringResource(R.string.sk_web_warning), color = c.star)
+            GlassButton(stringResource(R.string.sk_turn_on), { vm.prepareSecretKey(); sheet = "skKit" }, Modifier.fillMaxWidth())
+        }
+    }
+    // Emergency Kit: show the new key, confirm it was saved, then enable with the master password.
+    var last4 by rememberSaveable(sheet == "skKit") { mutableStateOf("") }
+    var skPw by rememberSaveable(sheet == "skKit") { mutableStateOf("") }
+    GlassSheet(sheet == "skKit", onDismiss = { vm.pendingSecretKey = null; vm.clearError(); close() }) {
+        val key = vm.pendingSecretKey ?: return@GlassSheet
+        Text(stringResource(R.string.sk_kit_title), style = Type.headline, color = c.text)
+        Body(stringResource(R.string.sk_kit_body))
+        QrCode(remember(key) { vm.secretKeyQr(key) }, Modifier.size(190.dp).align(Alignment.CenterHorizontally))
+        InsetGroup { Text(key, style = Type.body.copy(fontFamily = FontFamily.Monospace), color = c.text, modifier = Modifier.padding(16.dp)) }
+        GlassButton(stringResource(R.string.detail_copy), { copySensitive(context, "secret key", key, prefs.clipboardClearSeconds); host.toast(copied) }, Modifier.fillMaxWidth(), prominent = false, icon = Icons.Filled.ContentCopy)
+        GlassTextField(last4, { last4 = it.uppercase().take(4) }, stringResource(R.string.sk_confirm_last4), mono = true)
+        GlassTextField(skPw, { skPw = it }, stringResource(R.string.master_password), secret = true)
+        ErrorText(vm.error)
+        GlassButton(stringResource(R.string.sk_turn_on), { vm.enableSecretKey(skPw) { close() }; skPw = "" }, Modifier.fillMaxWidth(), enabled = skPw.isNotEmpty() && last4 == key.replace("-", "").takeLast(4))
+    }
+    PasswordSheet(sheet == "skOff", stringResource(R.string.sk_turn_off), stringResource(R.string.sk_explain), stringResource(R.string.sk_turn_off), vm, destructive = true, onDismiss = ::close) { pw -> vm.disableSecretKey(pw) { close() } }
+    PasswordSheet(sheet == "skShow", stringResource(R.string.sk_show), null, stringResource(R.string.detail_reveal), vm, onDismiss = ::close) { pw -> vm.revealSecretKey(pw) { close() } }
+    val shownSk = vm.shownSecretKey
+    GlassSheet(shownSk != null, onDismiss = { vm.shownSecretKey = null }) {
+        if (shownSk == null) return@GlassSheet
+        Text(stringResource(R.string.sk_title), style = Type.headline, color = c.text)
+        Body(stringResource(R.string.sk_kit_body))
+        QrCode(remember(shownSk) { vm.secretKeyQr(shownSk) }, Modifier.size(190.dp).align(Alignment.CenterHorizontally))
+        InsetGroup { Text(shownSk, style = Type.body.copy(fontFamily = FontFamily.Monospace), color = c.text, modifier = Modifier.padding(16.dp)) }
+        GlassButton(stringResource(R.string.action_done), { vm.shownSecretKey = null }, Modifier.fillMaxWidth())
     }
 
     // ---- biometric

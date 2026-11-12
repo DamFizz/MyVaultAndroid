@@ -208,6 +208,9 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
         session = null
         breached = null
         draft = null
+        selection = emptySet()
+        pendingSecretKey = null
+        shownSecretKey = null
         revealed.clear()
         needsSecretKey = store.getHeader()?.let { !access.hasSecretKeyOnDevice(it) } ?: false
         screen = if (store.getHeader() == null) Screen.Welcome else Screen.Unlock
@@ -445,6 +448,85 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
         s.purgeItems(ids)
         revision++
         notify(R.string.toast_deleted)
+    }
+
+    // ------------------------------------------------------------------ multi-select
+
+    var selection by mutableStateOf<Set<String>>(emptySet())
+
+    fun toggleSelected(id: String) {
+        selection = if (id in selection) selection - id else selection + id
+    }
+
+    fun clearSelection() {
+        selection = emptySet()
+    }
+
+    fun moveSelected(category: String?, keepCategory: Boolean, folder: String?, keepFolder: Boolean) {
+        val s = session ?: return
+        val before = Items.move(s, selection, now(), category, folder, keepCategory, keepFolder)
+        selection = emptySet()
+        revision++
+        notify(R.string.toast_moved, before)
+    }
+
+    fun favoriteSelected(value: Boolean) {
+        val s = session ?: return
+        Items.favorite(s, selection, value, now())
+        selection = emptySet()
+        revision++
+    }
+
+    // ------------------------------------------------------------------ overview
+
+    fun corruptedCount(): Int = session?.corruptedIds?.size ?: 0
+
+    fun backupDue(): Boolean {
+        val days = prefs.backupReminderDays
+        if (days <= 0 || session == null) return false
+        val last = lastBackupAt() ?: return items().isNotEmpty()
+        return now() - last > days * 86_400_000L
+    }
+
+    // ------------------------------------------------------------------ Secret Key (format v2)
+
+    /** A freshly generated key the user is being shown in the Emergency Kit (not yet enabled). */
+    var pendingSecretKey by mutableStateOf<String?>(null)
+    /** The current key, revealed after the master password was verified. */
+    var shownSecretKey by mutableStateOf<String?>(null)
+
+    fun prepareSecretKey() {
+        pendingSecretKey = com.damfizz.myvault.core.SecretKeys.generate().display
+    }
+
+    fun secretKeyQr(display: String): String {
+        val raw = com.damfizz.myvault.core.SecretKeys.parse(display).raw
+        return com.damfizz.myvault.core.SecretKeys.qrPayload(store.getHeader()?.vaultId.orEmpty(), raw)
+    }
+
+    fun enableSecretKey(password: String, onDone: () -> Unit) = work {
+        val s = session ?: return@work
+        val key = pendingSecretKey ?: return@work
+        timedKdf { access.enableSecretKey(s, password, key) }
+        pendingSecretKey = null
+        revision++
+        notice = Notice(str(R.string.sk_enabled)); noticeId++
+        onDone()
+    }
+
+    fun disableSecretKey(password: String, onDone: () -> Unit) = work {
+        val s = session ?: return@work
+        timedKdf { access.disableSecretKey(s, password) }
+        revision++
+        notice = Notice(str(R.string.sk_disabled)); noticeId++
+        onDone()
+    }
+
+    fun revealSecretKey(password: String, onDone: () -> Unit) = work {
+        val s = session ?: return@work
+        timedKdf { access.verifyMasterPassword(s, password) }
+        shownSecretKey = access.currentSecretKey(s)?.let(com.damfizz.myvault.core.SecretKeys::format)
+        onDone()
     }
 
     fun trashedIds(): List<String> = session?.items().orEmpty().filter { it.trashedAt != null }.map { it.id }

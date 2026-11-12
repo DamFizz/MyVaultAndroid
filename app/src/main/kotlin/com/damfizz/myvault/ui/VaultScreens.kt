@@ -183,6 +183,8 @@ private fun VaultList(vm: VaultViewModel, pad: PaddingValues, favouritesOnly: Bo
     var showViews by remember { mutableStateOf(false) }
     var showSort by remember { mutableStateOf(false) }
     var askEmpty by remember { mutableStateOf(false) }
+    var showMove by remember { mutableStateOf(false) }
+    if (vm.selection.isNotEmpty()) BackHandler(onBack = vm::clearSelection)
     val rev = vm.revision
     val filter = if (favouritesOnly) ItemFilter.Favorites else vm.filter
     val collections = remember(rev) { vm.collections() }
@@ -207,6 +209,52 @@ private fun VaultList(vm: VaultViewModel, pad: PaddingValues, favouritesOnly: Bo
                 }
             }
         }
+        if (vm.selection.isNotEmpty()) {
+            item {
+                val ids = vm.selection.toList()
+                InsetGroup(Modifier.padding(bottom = 12.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(R.string.sel_count, ids.size), style = Type.headline, color = c.text, modifier = Modifier.weight(1f))
+                        if (filter == ItemFilter.Trash) {
+                            RowIconButton(Icons.Filled.RestoreFromTrash, stringResource(R.string.action_restore), { vm.restore(ids); vm.clearSelection() })
+                        } else {
+                            RowIconButton(Icons.Filled.Star, stringResource(R.string.action_favorite), { vm.favoriteSelected(true) })
+                            RowIconButton(Icons.Filled.DriveFileMove, stringResource(R.string.sel_move), { showMove = true })
+                            RowIconButton(Icons.Filled.Archive, stringResource(if (filter == ItemFilter.Archive) R.string.action_unarchive else R.string.action_archive), { vm.archive(ids, filter != ItemFilter.Archive); vm.clearSelection() })
+                            RowIconButton(Icons.Filled.Delete, stringResource(R.string.action_trash), { vm.trash(ids); vm.clearSelection() }, tint = c.danger)
+                        }
+                        RowIconButton(Icons.Filled.Close, stringResource(R.string.cancel), vm::clearSelection, tint = c.text2)
+                    }
+                }
+            }
+        } else if (filter == ItemFilter.All && query.isBlank()) {
+            // Overview: what needs attention (web dashboard)
+            val corrupted = vm.corruptedCount()
+            val due = vm.backupDue()
+            val report = vm.securityReport()
+            if (corrupted > 0 || due || (report != null && report.withPassword > 0)) {
+                item {
+                    InsetGroup(Modifier.padding(bottom = 12.dp)) {
+                        if (report != null && report.withPassword > 0) {
+                            ListRow(
+                                stringResource(R.string.dash_security, report.score),
+                                subtitle = stringResource(R.string.dash_security_sub, report.weak.size, report.reused.sumOf { it.size }),
+                                leading = { IconTile(Icons.Filled.HealthAndSafety, 34.dp) },
+                                onClick = { vm.tab = 2 },
+                            ) { Icon(Icons.Filled.ChevronRight, null, tint = c.text3, modifier = Modifier.size(22.dp)) }
+                        }
+                        if (due) {
+                            GroupDivider(64.dp)
+                            ListRow(stringResource(R.string.bk_title).replace("&amp;", "&"), subtitle = stringResource(R.string.dash_backup_due), leading = { IconTile(Icons.Filled.Backup, 34.dp, c.star) }, onClick = { vm.go(Screen.BackupRestore) })
+                        }
+                        if (corrupted > 0) {
+                            GroupDivider(64.dp)
+                            ListRow(stringResource(R.string.dash_corrupted, corrupted), leading = { IconTile(Icons.Filled.Warning, 34.dp, c.danger) })
+                        }
+                    }
+                }
+            }
+        }
         if (filter == ItemFilter.Trash && shown.isNotEmpty()) {
             item { GlassButton(stringResource(R.string.trash_empty), { askEmpty = true }, Modifier.fillMaxWidth().padding(bottom = 12.dp), prominent = false, destructive = true, icon = Icons.Filled.DeleteForever) }
         }
@@ -219,14 +267,17 @@ private fun VaultList(vm: VaultViewModel, pad: PaddingValues, favouritesOnly: Bo
                 bottomStart = if (last) 24.dp else 0.dp, bottomEnd = if (last) 24.dp else 0.dp,
             )
             Column(Modifier.fillMaxWidth().clip(shape).background(c.fill)) {
+                val selecting = vm.selection.isNotEmpty()
+                val selected = item.id in vm.selection
                 ListRow(
                     title = item.title.ifBlank { untitled },
                     subtitle = Items.subtitle(item).ifEmpty { stringResource(typeLabel(item.type)) },
-                    leading = { IconTile(iconFor(item.type)) },
-                    onClick = { vm.go(Screen.Detail(item.id)) },
+                    leading = { if (selected) IconTile(Icons.Filled.Check, color = c.accent) else IconTile(iconFor(item.type)) },
+                    onClick = { if (selecting) vm.toggleSelected(item.id) else vm.go(Screen.Detail(item.id)) },
+                    onLongClick = { vm.toggleSelected(item.id) },
                 ) {
                     if (item.favorite) Icon(Icons.Filled.Star, null, tint = c.star, modifier = Modifier.size(17.dp))
-                    Icon(Icons.Filled.ChevronRight, null, tint = c.text3, modifier = Modifier.size(22.dp))
+                    if (!selecting) Icon(Icons.Filled.ChevronRight, null, tint = c.text3, modifier = Modifier.size(22.dp))
                 }
                 if (!last) GroupDivider(inset = 68.dp)
             }
@@ -267,6 +318,39 @@ private fun VaultList(vm: VaultViewModel, pad: PaddingValues, favouritesOnly: Bo
                 Row(stringResource(R.string.nav_archive), Icons.Filled.Archive, ItemFilter.Archive); GroupDivider(62.dp)
                 Row(stringResource(R.string.nav_trash), Icons.Filled.Delete, ItemFilter.Trash)
             }
+        }
+    }
+    // ---- move selected items (web: MoveDialog)
+    var moveCat by remember(showMove) { mutableStateOf<String?>("keep") }
+    var moveFolder by remember(showMove) { mutableStateOf<String?>("keep") }
+    GlassSheet(visible = showMove, onDismiss = { showMove = false }) {
+        Text(stringResource(R.string.sel_move_title, vm.selection.size), style = Type.headline, color = c.text)
+        SheetList {
+            SectionHeader(stringResource(R.string.field_category))
+            InsetGroup {
+                ListRow(stringResource(R.string.sel_keep), onClick = { moveCat = "keep" }) { CheckMark(moveCat == "keep") }
+                GroupDivider()
+                ListRow(stringResource(R.string.field_none), onClick = { moveCat = null }) { CheckMark(moveCat == null) }
+                for (cat in categories) {
+                    GroupDivider()
+                    ListRow(cat.name, onClick = { moveCat = cat.id }) { CheckMark(moveCat == cat.id) }
+                }
+            }
+            SectionHeader(stringResource(R.string.field_folder))
+            InsetGroup {
+                ListRow(stringResource(R.string.sel_keep), onClick = { moveFolder = "keep" }) { CheckMark(moveFolder == "keep") }
+                GroupDivider()
+                ListRow(stringResource(R.string.field_none), onClick = { moveFolder = null }) { CheckMark(moveFolder == null) }
+                for ((f, depth) in folderTree(collections)) {
+                    GroupDivider()
+                    ListRow(f.name, Modifier.padding(start = (depth * 18).dp), onClick = { moveFolder = f.id }) { CheckMark(moveFolder == f.id) }
+                }
+            }
+            GlassButton(
+                stringResource(R.string.sel_move),
+                { vm.moveSelected(moveCat.takeIf { it != "keep" }, moveCat == "keep", moveFolder.takeIf { it != "keep" }, moveFolder == "keep"); showMove = false },
+                Modifier.fillMaxWidth(),
+            )
         }
     }
     // ---- sort
@@ -411,6 +495,9 @@ internal fun DetailScreen(vm: VaultViewModel, id: String) {
                     ListRow(stringResource(R.string.detail_reprompt_title), subtitle = stringResource(R.string.detail_reprompt_body), leading = { IconTile(Icons.Filled.Lock) })
                 }
                 GlassButton(stringResource(R.string.detail_unlock), { askPassword = true }, Modifier.fillMaxWidth(), icon = Icons.Filled.Lock)
+            }
+            if (!locked && item.type == ItemType.LOGIN && !item.password.isNullOrEmpty() && remember(item.password) { com.damfizz.myvault.core.Strength.estimate(item.password!!).score < 3 }) {
+                Footnote(stringResource(R.string.dash_weak), Modifier.padding(horizontal = 16.dp), color = c.star)
             }
             if (fields.isNotEmpty()) InsetGroup { fields.forEachIndexed { i, f -> FieldRow(f, locked && f.secret, onCopy, onOpen, vm.prefs.revealSeconds); if (i != fields.lastIndex) GroupDivider() } }
             if (notes.isNotEmpty()) InsetGroup { notes.forEachIndexed { i, f -> FieldRow(f, false, onCopy, onOpen); if (i != notes.lastIndex) GroupDivider() } }

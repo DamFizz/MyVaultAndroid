@@ -96,7 +96,7 @@
     <string name="settings_trust">Two-step skipped on this phone until %1$s</string>
     <string name="settings_trust_forget">Ask for the code again</string>
     <string name="settings_secret_key_on">Secret Key: on</string>
-    <string name="settings_secret_key_off">Secret Key: off (turn it on from the web app once it is released)</string>
+    <string name="settings_secret_key_off">Secret Key: off</string>
     <string name="settings_recovery_yes">Emergency recovery key: set</string>
     <string name="settings_recovery_no">Emergency recovery key: not set</string>
     <string name="settings_kdf">Last Argon2id key derivation: %1$d ms</string>
@@ -379,4 +379,28 @@
     <string name="csv_import">Import %1$d items</string>
     <string name="csv_done">%1$d items imported and encrypted. Now delete the CSV file from your phone.</string>
     <string name="csv_ack">I understand this file is unencrypted and I will delete it after importing</string>
+    <string name="sel_count">%1$d selected</string>
+    <string name="sel_move">Move</string>
+    <string name="sel_move_title">Move %1$d item(s)</string>
+    <string name="sel_keep">Keep current</string>
+    <string name="sel_hint">Press and hold an item to select several.</string>
+    <string name="toast_moved">Moved</string>
+    <string name="dash_security">Security score %1$d</string>
+    <string name="dash_security_sub">%1$d weak · %2$d reused</string>
+    <string name="dash_corrupted">%1$d record(s) could not be decrypted (damaged or modified). They are left untouched; restore from a backup if items are missing.</string>
+    <string name="dash_backup_due">It has been a while since your last backup. Export one now.</string>
+    <string name="dash_weak">This password is weak or common. Consider generating a stronger one.</string>
+    <string name="sk_title">Secret Key</string>
+    <string name="sk_explain">A 128-bit key kept only on your devices and in your Emergency Kit. With it on, someone who steals your cloud copy or a backup cannot open the vault even with your master password.</string>
+    <string name="sk_needs_recovery">Create an emergency recovery key first, so the vault can never be lost.</string>
+    <string name="sk_web_warning">Other devices will ask for this Secret Key at their next unlock. The web app must be updated to a version that supports it before you turn this on, or it will stop syncing.</string>
+    <string name="sk_turn_on">Turn on Secret Key</string>
+    <string name="sk_rotate">Replace with a new Secret Key</string>
+    <string name="sk_turn_off">Turn off Secret Key</string>
+    <string name="sk_show">Show Secret Key (add a device)</string>
+    <string name="sk_kit_title">Emergency Kit</string>
+    <string name="sk_kit_body">Write this down or save it somewhere safe that is NOT your Google Drive. Scan the QR code from your other device, or type the key.</string>
+    <string name="sk_confirm_last4">Type the last 4 characters to confirm you saved it</string>
+    <string name="sk_enabled">Secret Key turned on</string>
+    <string name="sk_disabled">Secret Key turned off</string>
 </resources>

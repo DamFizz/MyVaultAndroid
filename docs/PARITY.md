@@ -23,16 +23,16 @@ Legend: ✅ in the APK · 🟡 logic in `:core`, no screen yet · ⬜ not starte
 
 | Feature | Status |
 |---|---|
-| Overview/dashboard: recommendations, favourites, recently used, conflict and corruption notices | ⬜ |
+| Overview: security score, backup reminder, corruption notice at the top of the list | ✅ (conflict notices come with sync) |
 | List with search (never searches passwords) | ✅ |
 | Views: all, favourites, recently added, recently used, by type, category, folder (nested), tag, uncategorized, archive, trash | ✅ |
 | Sort: title, updated, created, last used | ✅ |
 | Item detail: all fields, reveal, copy, open website (http/https only) | ✅ |
-| Detail: password history, created/modified/password-changed dates | ✅ (weak-password warning and last-used date ⬜) |
+| Detail: password history, weak-password warning, created/modified/password-changed dates | ✅ (last-used date ⬜) |
 | Reprompt for protected items | ✅ |
 | Create and edit all 6 item types, custom fields, tags, validation, discard-changes prompt | ✅ (tag suggestions ⬜) |
-| Favourite, archive, trash, restore, delete forever, duplicate, undo toast | ✅ (move dialog ⬜; category/folder are set in the editor) |
-| Multi-select with bulk move/archive/trash/tag | ⬜ |
+| Favourite, archive, trash, restore, delete forever, duplicate, move, undo toast | ✅ |
+| Multi-select (press and hold) with bulk favourite/move/archive/trash/restore | ✅ (bulk tag ⬜; not yet exercised on the emulator) |
 | Trash retention (auto-purge on unlock), empty trash | ✅ |
 | Reveal timeout (re-hide secrets after N seconds) | ⬜ |
 
@@ -89,7 +89,7 @@ Legend: ✅ in the APK · 🟡 logic in `:core`, no screen yet · ⬜ not starte
 | Change master password (with strength check) | ✅ |
 | Authenticator: enable with QR, disable; recovery codes regenerate and copy | ✅ (print ⬜; not yet exercised end to end on the emulator) |
 | Recovery key: create, replace, remove, shown once with copy | ✅ (printable kit ⬜) |
-| Secret Key: enable, rotate, disable, Emergency Kit, "add a device" QR | 🟡 (web UI also pending) |
+| Secret Key: enable, rotate, disable, Emergency Kit with QR, "add a device" QR | ✅ (not yet exercised on the emulator; web UI still pending) |
 | Quick unlock on/off | ✅ |
 | Trusted device status and forget | ✅ |
 | Auto-lock timer, lock when hidden, reveal timeout, clipboard clear time | ✅ |
