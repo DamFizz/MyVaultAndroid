@@ -175,7 +175,32 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
 
     fun unlock(password: String, secretKey: String?, rememberSecretKey: Boolean) = work {
         val src = SecretKeySource(secretKey = secretKey?.takeIf { it.isNotBlank() }, rememberSecretKey = rememberSecretKey)
-        handle(timedKdf { access.unlockWithPassword(password, src) })
+        val step = timedKdf { access.unlockWithPassword(password, src) }
+        // Kept only until the "use fingerprint or face next time?" offer is answered (or the vault locks),
+        // so turning it on does not ask for the password a second time.
+        if (!biometricEnabled() && !prefs.biometricOfferDismissed &&
+            com.damfizz.myvault.security.BiometricSupport.status(getApplication()) == com.damfizz.myvault.security.BiometricSupport.Status.AVAILABLE
+        ) offerPassword = password
+        handle(step)
+    }
+
+    /** Password just used to unlock, held briefly for the biometric offer; never stored. */
+    private var offerPassword: String? = null
+    var biometricOffer by mutableStateOf(false)
+        private set
+
+    /** User accepted the offer and BiometricPrompt approved [cipher]. */
+    fun acceptBiometricOffer(cipher: Cipher) {
+        val pw = offerPassword ?: return
+        offerPassword = null
+        biometricOffer = false
+        enableBiometric(cipher, pw)
+    }
+
+    fun declineBiometricOffer() {
+        offerPassword = null
+        biometricOffer = false
+        prefs.updateBiometricOfferDismissed(true)
     }
 
     fun unlockWithRecoveryKey(recoveryKey: String, newPassword: String) = work {
@@ -206,9 +231,12 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
         revealed.clear()
         revision++
         go(Screen.Vault)
+        biometricOffer = offerPassword != null
     }
 
     fun lock() {
+        offerPassword = null
+        biometricOffer = false
         (screen as? Screen.SecondFactor)?.challenge?.cancel()
         session?.lock()
         session = null
@@ -309,6 +337,32 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
         val ct = timedKdf { access.withMasterPassword(s, password) { vk -> cipher.doFinal(vk) } }
         store.setLocal(key, buildJsonObject { put("iv", Encoding.toBase64(cipher.iv)); put("ct", Encoding.toBase64(ct)) })
         revision++
+        notice = Notice(str(R.string.bio_enabled)); noticeId++
+    }
+
+    /**
+     * Protected item opened with fingerprint/face: the biometric key releases the vault key, which is
+     * checked against this vault's header (same proof as the master password), then wiped.
+     */
+    fun repromptWithBiometric(id: String, cipher: Cipher, onOk: () -> Unit) = work {
+        val s = session ?: return@work
+        val o = quickKey()?.let { store.getLocal(it) } as? JsonObject ?: return@work
+        val vk = try {
+            cipher.doFinal(Encoding.fromBase64(o["ct"]!!.jsonPrimitive.content))
+        } catch (e: Exception) {
+            throw DecryptionError()
+        }
+        try {
+            withContext(Dispatchers.Default) {
+                val h = s.header
+                val keys = com.damfizz.myvault.core.Keys.deriveVaultKeys(vk, h.vaultId)
+                com.damfizz.myvault.core.Crypto.openJson(keys.security, h.security, com.damfizz.myvault.core.Aad.security(h.vaultId, h.rev, h.vtag))
+            }
+        } finally {
+            Encoding.wipe(vk)
+        }
+        revealed += id
+        onOk()
     }
 
     fun disableBiometric() {
@@ -672,6 +726,7 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
     /** Called by the UI when Google returned an access token for the Drive appDataFolder scope. */
     fun onDriveToken(token: String, thenSync: Boolean = true) {
         driveToken = token
+        driveSetupNeeded = false
         needsDriveAuth = false
         syncError = null
         viewModelScope.launch {
@@ -681,8 +736,73 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Google says this Android app is not registered (missing Android OAuth client for package + SHA-1). */
+    var driveSetupNeeded by mutableStateOf(false)
+        private set
+
     fun onDriveAuthFailed(message: String) {
-        syncError = str(R.string.sync_err_signin, message)
+        val unregistered = "UNREGISTERED_ON_API_CONSOLE" in message || "DEVELOPER_ERROR" in message || message.trim().startsWith("10:")
+        driveSetupNeeded = unregistered
+        syncError = if (unregistered) str(R.string.gs_title) else str(R.string.sync_err_signin, message)
+    }
+
+    // ------------------------------------------------------------------ app updates (GitHub Releases)
+
+    val installedVersion: String = com.damfizz.myvault.data.Updater.installedVersion(app)
+    var update by mutableStateOf<com.damfizz.myvault.data.Updater.Release?>(null)
+        private set
+    /** null idle · "checking" · "latest" · "downloading" · or an error message */
+    var updateStatus by mutableStateOf<String?>(null)
+        private set
+    var updateProgress by mutableStateOf(0f)
+        private set
+
+    fun checkForUpdates(manual: Boolean) {
+        if (updateStatus == "checking" || updateStatus == "downloading") return
+        if (!manual && (!prefs.autoUpdateCheck || System.currentTimeMillis() - prefs.lastUpdateCheck < 86_400_000L)) return
+        updateStatus = if (manual) "checking" else null
+        viewModelScope.launch {
+            try {
+                val r = withContext(Dispatchers.IO) { com.damfizz.myvault.data.Updater.latest() }
+                prefs.lastUpdateCheck = System.currentTimeMillis()
+                update = r?.takeIf { com.damfizz.myvault.core.Versions.isNewer(it.version, installedVersion) }
+                updateStatus = if (manual && update == null) "latest" else null
+            } catch (e: com.damfizz.myvault.data.Updater.UpdateError) {
+                if (manual) updateStatus = when (e.message) {
+                    "network" -> str(R.string.upd_err_network)
+                    "not-found" -> str(R.string.upd_err_notfound)
+                    else -> str(R.string.upd_err_other, e.message ?: "?")
+                }
+            } catch (e: Exception) {
+                if (manual) updateStatus = str(R.string.upd_err_other, e.message ?: e.javaClass.simpleName)
+            }
+        }
+    }
+
+    fun downloadAndInstallUpdate() {
+        val r = update ?: return
+        val ctx = getApplication<Application>()
+        updateStatus = "downloading"
+        updateProgress = 0f
+        viewModelScope.launch {
+            try {
+                val file = withContext(Dispatchers.IO) { com.damfizz.myvault.data.Updater.download(ctx, r) { p -> updateProgress = p } }
+                updateStatus = null
+                com.damfizz.myvault.data.Updater.install(ctx, file)
+            } catch (e: com.damfizz.myvault.data.Updater.UpdateError) {
+                updateStatus = when (e.message) {
+                    "network" -> str(R.string.upd_err_network)
+                    "checksum" -> str(R.string.upd_err_checksum)
+                    else -> str(R.string.upd_err_other, e.message ?: "?")
+                }
+            } catch (e: Exception) {
+                updateStatus = str(R.string.upd_err_other, e.message ?: e.javaClass.simpleName)
+            }
+        }
+    }
+
+    fun clearUpdateStatus() {
+        if (updateStatus != "downloading" && updateStatus != "checking") updateStatus = null
     }
 
     fun syncNow(quiet: Boolean = true) {

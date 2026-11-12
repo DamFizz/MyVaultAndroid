@@ -148,6 +148,8 @@ internal fun MainScreen(vm: VaultViewModel) {
     val add = stringResource(R.string.action_add)
     var chooseType by remember { mutableStateOf(false) }
     AutoSyncOnUnlock(vm)
+    BiometricOfferSheet(vm)
+    LaunchedEffect(Unit) { vm.checkForUpdates(manual = false) }
     GlassScaffold(
         topBar = {
             Row(Modifier.align(Alignment.CenterEnd), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -185,6 +187,7 @@ private fun VaultList(vm: VaultViewModel, pad: PaddingValues, favouritesOnly: Bo
     var showSort by remember { mutableStateOf(false) }
     var askEmpty by remember { mutableStateOf(false) }
     var showMove by remember { mutableStateOf(false) }
+    var showUpdate by remember { mutableStateOf(false) }
     if (vm.selection.isNotEmpty()) BackHandler(onBack = vm::clearSelection)
     val rev = vm.revision
     val filter = if (favouritesOnly) ItemFilter.Favorites else vm.filter
@@ -233,6 +236,16 @@ private fun VaultList(vm: VaultViewModel, pad: PaddingValues, favouritesOnly: Bo
             val corrupted = vm.corruptedCount()
             val due = vm.backupDue()
             val report = vm.securityReport()
+            val upd = vm.update
+            if (upd != null) {
+                item {
+                    InsetGroup(Modifier.padding(bottom = 12.dp)) {
+                        ListRow(stringResource(R.string.upd_available_short, upd.version), leading = { IconTile(Icons.Filled.SystemUpdate, 34.dp) }, onClick = { showUpdate = true }) {
+                            Icon(Icons.Filled.ChevronRight, null, tint = c.text3, modifier = Modifier.size(22.dp))
+                        }
+                    }
+                }
+            }
             if (corrupted > 0 || due || (report != null && report.withPassword > 0)) {
                 item {
                     InsetGroup(Modifier.padding(bottom = 12.dp)) {
@@ -321,6 +334,7 @@ private fun VaultList(vm: VaultViewModel, pad: PaddingValues, favouritesOnly: Bo
             }
         }
     }
+    GlassSheet(visible = showUpdate, onDismiss = { vm.clearUpdateStatus(); showUpdate = false }) { UpdateSheetBody(vm) }
     // ---- move selected items (web: MoveDialog)
     var moveCat by remember(showMove) { mutableStateOf<String?>("keep") }
     var moveFolder by remember(showMove) { mutableStateOf<String?>("keep") }
@@ -561,6 +575,16 @@ internal fun DetailScreen(vm: VaultViewModel, id: String) {
         }
         Text(stringResource(R.string.detail_reprompt_title), style = Type.headline, color = c.text)
         Body(stringResource(R.string.detail_reprompt_body))
+        if (remember(vm.revision) { vm.biometricEnabled() }) {
+            val activity = context as androidx.fragment.app.FragmentActivity
+            val title = stringResource(R.string.bio_prompt_item)
+            val cancel = stringResource(R.string.cancel)
+            GlassButton(stringResource(R.string.bio_use), {
+                vm.biometricUnlockCipher()?.let { cipher ->
+                    showBiometricPrompt(activity, title, cancel, cipher) { ok -> vm.repromptWithBiometric(id, ok) { unlockedTick++; askPassword = false } }
+                }
+            }, Modifier.fillMaxWidth(), prominent = false, icon = Icons.Filled.Fingerprint)
+        }
         GlassTextField(pw, { pw = it }, stringResource(R.string.master_password), secret = true, onDone = ::submit)
         ErrorText(vm.error)
         GlassButton(stringResource(R.string.detail_unlock), ::submit, Modifier.fillMaxWidth(), enabled = pw.isNotEmpty())
@@ -769,4 +793,27 @@ internal fun EditorScreen(vm: VaultViewModel) {
         onDismiss = { askDiscard = false },
         destructive = true,
     )
+}
+
+/** After a password unlock: offer fingerprint / face unlock once (until the user says "Not now"). */
+@Composable
+private fun BiometricOfferSheet(vm: VaultViewModel) {
+    val c = LocalGlassColors.current
+    val activity = LocalContext.current as androidx.fragment.app.FragmentActivity
+    val title = stringResource(R.string.settings_biometric_prompt)
+    val cancel = stringResource(R.string.cancel)
+    GlassSheet(visible = vm.biometricOffer, onDismiss = vm::declineBiometricOffer) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconTile(Icons.Filled.Fingerprint, 44.dp)
+            Spacer(Modifier.width(14.dp))
+            Text(stringResource(R.string.bio_offer_title), style = Type.headline, color = c.text)
+        }
+        Body(stringResource(R.string.bio_offer_body))
+        GlassButton(stringResource(R.string.settings_biometric_enable), {
+            runCatching { com.damfizz.myvault.security.BiometricKey.encryptCipher() }.onSuccess { cipher ->
+                showBiometricPrompt(activity, title, cancel, cipher) { vm.acceptBiometricOffer(it) }
+            }
+        }, Modifier.fillMaxWidth(), icon = Icons.Filled.Fingerprint)
+        GlassButton(stringResource(R.string.bio_offer_no), vm::declineBiometricOffer, Modifier.fillMaxWidth(), prominent = false)
+    }
 }

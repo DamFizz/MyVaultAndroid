@@ -170,7 +170,14 @@ internal fun SettingsTab(vm: VaultViewModel, pad: PaddingValues) {
     val bio = remember(rev) { vm.biometricEnabled() }
     val trustedUntil = remember(rev) { vm.deviceTrustedUntil() }
     val categories = remember(rev) { vm.collections().filter { it.kind == "category" } }
-    val canBio = remember { BiometricManager.from(activity).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS }
+    // Re-read when coming back to the app (e.g. after adding a fingerprint in the phone's settings).
+    var resumeTick by remember { mutableIntStateOf(0) }
+    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
+        resumeTick++
+        onPauseOrDispose { }
+    }
+    val bioStatus = remember(rev, resumeTick) { com.damfizz.myvault.security.BiometricSupport.status(activity) }
+    val canBio = bioStatus == com.damfizz.myvault.security.BiometricSupport.Status.AVAILABLE
     var sheet by remember { mutableStateOf("") }
     fun close() { sheet = "" }
     val promptTitle = stringResource(R.string.settings_biometric_prompt)
@@ -248,12 +255,25 @@ internal fun SettingsTab(vm: VaultViewModel, pad: PaddingValues) {
                 Icon(Icons.Filled.ChevronRight, null, tint = c.text3, modifier = Modifier.size(22.dp))
             }
             GroupDivider(64.dp)
+            val bioHint = when {
+                bio -> stringResource(R.string.settings_biometric_on)
+                bioStatus == com.damfizz.myvault.security.BiometricSupport.Status.NONE_ENROLLED -> stringResource(R.string.bio_none_enrolled)
+                bioStatus == com.damfizz.myvault.security.BiometricSupport.Status.WEAK_ONLY -> stringResource(R.string.bio_weak_only)
+                bioStatus == com.damfizz.myvault.security.BiometricSupport.Status.UNAVAILABLE -> stringResource(R.string.bio_unavailable)
+                else -> null
+            }
+            val openEnroll = { runCatching { activity.startActivity(com.damfizz.myvault.security.BiometricSupport.enrollIntent()) }; Unit }
             ListRow(
                 stringResource(R.string.settings_biometric),
-                subtitle = if (bio) stringResource(R.string.settings_biometric_on) else null,
+                subtitle = bioHint,
                 leading = { IconTile(Icons.Filled.Fingerprint, 34.dp) },
-                onClick = if (bio || canBio) ({ if (bio) vm.disableBiometric() else sheet = "bio" }) else null,
-            ) { GlassToggle(bio, { on -> if (on) sheet = "bio" else vm.disableBiometric() }) }
+                onClick = when {
+                    bio -> ({ vm.disableBiometric() })
+                    canBio -> ({ sheet = "bio" })
+                    bioStatus == com.damfizz.myvault.security.BiometricSupport.Status.UNAVAILABLE -> null
+                    else -> openEnroll
+                },
+            ) { if (bio || canBio) GlassToggle(bio, { on -> if (on) sheet = "bio" else vm.disableBiometric() }) }
             if (trustedUntil != null) {
                 GroupDivider(64.dp)
                 ListRow(
@@ -311,6 +331,16 @@ internal fun SettingsTab(vm: VaultViewModel, pad: PaddingValues) {
         Footnote(stringResource(R.string.settings_readonly), Modifier.padding(horizontal = 16.dp))
 
         SectionHeader(stringResource(R.string.set_about))
+        InsetGroup {
+            ListRow(
+                stringResource(R.string.upd_check),
+                subtitle = vm.update?.let { stringResource(R.string.upd_available, it.version) } ?: stringResource(R.string.upd_current, vm.installedVersion),
+                leading = { IconTile(Icons.Filled.SystemUpdate, 34.dp) },
+                onClick = { sheet = "update"; if (vm.update == null) vm.checkForUpdates(manual = true) },
+            ) { Icon(Icons.Filled.ChevronRight, null, tint = c.text3, modifier = Modifier.size(22.dp)) }
+            GroupDivider(64.dp)
+            ToggleRow(stringResource(R.string.upd_auto), prefs.autoUpdateCheck, prefs::updateAutoUpdateCheck, subtitle = stringResource(R.string.upd_auto_help))
+        }
         Footnote(stringResource(R.string.set_about_security), Modifier.padding(horizontal = 16.dp), color = c.text2)
         Footnote(stringResource(R.string.set_about_privacy), Modifier.padding(horizontal = 16.dp), color = c.text2)
         Footnote(stringResource(R.string.settings_version, BuildConfigCompat.versionName(activity)), Modifier.padding(horizontal = 16.dp))
@@ -401,6 +431,11 @@ internal fun SettingsTab(vm: VaultViewModel, pad: PaddingValues) {
         GlassButton(stringResource(R.string.detail_copy), { copySensitive(context, "recovery", text, prefs.clipboardClearSeconds); host.toast(copied) }, Modifier.fillMaxWidth(), prominent = false, icon = Icons.Filled.ContentCopy)
         InsetGroup { ToggleRow(stringResource(R.string.set_saved_ack), ack, { ack = it }) }
         GlassButton(stringResource(R.string.action_done), { vm.reveal = null }, Modifier.fillMaxWidth(), enabled = ack)
+    }
+
+    // ---- app update
+    GlassSheet(sheet == "update", onDismiss = { vm.clearUpdateStatus(); close() }) {
+        UpdateSheetBody(vm)
     }
 
     // ---- Secret Key (format v2)
@@ -603,6 +638,41 @@ private fun FlowGrid(count: Int, columns: Int, cell: @Composable (Int) -> Unit) 
                     val i = row * columns + col
                     if (i < count) cell(i) else Spacer(Modifier.size(32.dp))
                 }
+            }
+        }
+    }
+}
+
+/** Body of the update sheet: check result, release notes, download progress, install. */
+@Composable
+internal fun ColumnScope.UpdateSheetBody(vm: VaultViewModel) {
+    val c = LocalGlassColors.current
+    val context = LocalContext.current
+    val r = vm.update
+    val status = vm.updateStatus
+    Text(stringResource(R.string.upd_check), style = Type.headline, color = c.text)
+    Footnote(stringResource(R.string.upd_current, vm.installedVersion))
+    when {
+        status == "checking" -> Body(stringResource(R.string.upd_checking))
+        r == null && status == "latest" -> Body(stringResource(R.string.upd_latest))
+        r == null && status != null -> {
+            Footnote(status, color = c.danger)
+            TextLink(stringResource(R.string.upd_open_page), { runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(com.damfizz.myvault.data.Updater.RELEASES_PAGE))) } })
+        }
+        r != null -> {
+            Text(stringResource(R.string.upd_available, r.version), style = Type.headline, color = c.accent)
+            if (r.notes.isNotBlank()) InsetGroup { Text(r.notes.take(1500), style = Type.footnote, color = c.text2, modifier = Modifier.padding(14.dp)) }
+            if (!com.damfizz.myvault.data.Updater.canInstall(context)) {
+                Footnote(stringResource(R.string.upd_allow_help))
+                GlassButton(stringResource(R.string.upd_allow), { runCatching { context.startActivity(com.damfizz.myvault.data.Updater.allowInstallIntent(context)) } }, Modifier.fillMaxWidth(), prominent = false)
+            }
+            if (status == "downloading") {
+                Body(stringResource(R.string.upd_downloading, (vm.updateProgress * 100).toInt()))
+                androidx.compose.material3.LinearProgressIndicator(progress = { vm.updateProgress }, modifier = Modifier.fillMaxWidth(), color = c.accent, trackColor = c.pill)
+            } else {
+                if (status != null) Footnote(status, color = c.danger)
+                GlassButton(stringResource(R.string.upd_install), vm::downloadAndInstallUpdate, Modifier.fillMaxWidth(), icon = Icons.Filled.SystemUpdate)
+                TextLink(stringResource(R.string.upd_open_page), { runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(r.pageUrl))) } })
             }
         }
     }

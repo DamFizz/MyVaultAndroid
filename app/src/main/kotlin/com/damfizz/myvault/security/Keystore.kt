@@ -48,6 +48,32 @@ object KeystoreSecretBox : LocalSecretBox {
     }
 }
 
+/** What this phone offers for biometric unlock (only class 3 / "strong" biometrics can release Keystore keys). */
+object BiometricSupport {
+    enum class Status { AVAILABLE, NONE_ENROLLED, WEAK_ONLY, UNAVAILABLE }
+
+    fun status(context: android.content.Context): Status {
+        val bm = androidx.biometric.BiometricManager.from(context)
+        val strong = bm.canAuthenticate(androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG)
+        val weak = bm.canAuthenticate(androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK)
+        return when {
+            strong == androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS -> Status.AVAILABLE
+            weak == androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS -> Status.WEAK_ONLY
+            strong == androidx.biometric.BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> Status.NONE_ENROLLED
+            else -> Status.UNAVAILABLE
+        }
+    }
+
+    /** Opens the phone's screen for adding a fingerprint / face (Android 11+), else the security settings. */
+    fun enrollIntent(): android.content.Intent =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            android.content.Intent(android.provider.Settings.ACTION_BIOMETRIC_ENROLL)
+                .putExtra(android.provider.Settings.EXTRA_BIOMETRIC_AUTHENTICATORS_ALLOWED, androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG)
+        } else {
+            android.content.Intent(android.provider.Settings.ACTION_SECURITY_SETTINGS)
+        }
+}
+
 /**
  * Biometric quick unlock: an AES key that the Keystore only releases after a STRONG biometric check,
  * invalidated when fingerprints/faces change. It wraps the raw vault key for this phone only.

@@ -11,6 +11,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -98,6 +99,7 @@ internal fun SyncScreen(vm: VaultViewModel) {
                 }
             }
             vm.syncError?.let { Footnote(it, Modifier.padding(horizontal = 16.dp), color = c.danger) }
+            if (vm.driveSetupNeeded) GoogleSetupGuide()
 
             if (!prefs.driveConnected) {
                 GlassButton(stringResource(R.string.sync_connect), connect, Modifier.fillMaxWidth(), icon = Icons.Filled.Cloud)
@@ -146,5 +148,37 @@ internal fun AutoSyncOnUnlock(vm: VaultViewModel) {
     val connect = rememberDriveAuth(vm)
     LaunchedEffect(vm.session) {
         if (vm.session != null && vm.prefs.driveConnected && vm.prefs.autoSync && !vm.hasDriveToken()) connect()
+    }
+}
+
+/** Shown when Google answers UNREGISTERED_ON_API_CONSOLE: the exact values to register, with copy buttons. */
+@Composable
+internal fun GoogleSetupGuide() {
+    val c = LocalGlassColors.current
+    val context = LocalContext.current
+    val host = LocalOverlayHost.current
+    val copied = stringResource(R.string.clipboard_copied_plain)
+    val sha1 = remember { com.damfizz.myvault.data.Updater.signingSha1(context) }
+    fun copy(label: String, value: String) {
+        val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        cm.setPrimaryClip(android.content.ClipData.newPlainText(label, value))
+        host.toast(copied)
+    }
+    InsetGroup {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.gs_title), style = Type.headline, color = c.text)
+            Body(stringResource(R.string.gs_body))
+            for (step in listOf(R.string.gs_step1, R.string.gs_step2, R.string.gs_step3, R.string.gs_step4, R.string.gs_step5)) {
+                Text(stringResource(step).replace("&amp;", "&"), style = Type.footnote, color = c.text2)
+            }
+        }
+        GroupDivider()
+        ListRow(stringResource(R.string.gs_package), subtitle = context.packageName, onClick = { copy("package", context.packageName) }) {
+            Icon(Icons.Filled.ContentCopy, null, tint = c.accent, modifier = Modifier.size(20.dp))
+        }
+        GroupDivider()
+        ListRow(stringResource(R.string.gs_sha1), subtitle = sha1, onClick = { copy("sha1", sha1) }) {
+            Icon(Icons.Filled.ContentCopy, null, tint = c.accent, modifier = Modifier.size(20.dp))
+        }
     }
 }

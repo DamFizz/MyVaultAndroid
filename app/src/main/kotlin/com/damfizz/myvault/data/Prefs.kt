@@ -38,6 +38,15 @@ class Prefs(context: Context) {
         driveConnected = connected; driveEmail = email
         sp.edit().putBoolean("driveConnected", connected).putString("driveEmail", email).apply()
     }
+    var biometricOfferDismissed by mutableStateOf(sp.getBoolean("biometricOfferDismissed", false)); private set
+    fun updateBiometricOfferDismissed(v: Boolean) { biometricOfferDismissed = v; sp.edit().putBoolean("biometricOfferDismissed", v).apply() }
+
+    var autoUpdateCheck by mutableStateOf(sp.getBoolean("autoUpdateCheck", true)); private set
+    var lastUpdateCheck: Long
+        get() = sp.getLong("lastUpdateCheck", 0)
+        set(v) { sp.edit().putLong("lastUpdateCheck", v).apply() }
+    fun updateAutoUpdateCheck(v: Boolean) { autoUpdateCheck = v; sp.edit().putBoolean("autoUpdateCheck", v).apply() }
+
     fun updateAutoSync(v: Boolean) { autoSync = v; sp.edit().putBoolean("autoSync", v).apply() }
 
     fun updateTheme(v: String) { theme = v; sp.edit().putString("theme", v).apply() }

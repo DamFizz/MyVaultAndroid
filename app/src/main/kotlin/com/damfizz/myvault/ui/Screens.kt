@@ -192,6 +192,7 @@ private fun WelcomeScreen(vm: VaultViewModel) = AuthPage {
     val connect = rememberDriveAuth(vm) { vm.downloadFromDrive() }
     GlassButton(stringResource(R.string.welcome_drive), connect, Modifier.fillMaxWidth(), prominent = false)
     ErrorText(vm.syncError ?: vm.error)
+    if (vm.driveSetupNeeded) GoogleSetupGuide()
 }
 
 @Composable
@@ -260,6 +261,7 @@ internal fun showBiometricPrompt(activity: FragmentActivity, title: String, nega
         .setTitle(title)
         .setNegativeButtonText(negative)
         .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+        .setConfirmationRequired(false)
         .build()
     prompt.authenticate(info, BiometricPrompt.CryptoObject(cipher))
 }
