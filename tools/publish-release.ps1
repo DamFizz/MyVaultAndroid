@@ -47,6 +47,6 @@ MyVault for Android $Version (alpha).
 
 SHA-256: $((Get-Content "$apk.sha256").Split(' ')[0])
 "@
-gh release create "v$Version" $apk "$apk.sha256" --repo $Repo --title "MyVault Android $Version" --notes $notes --prerelease --latest
+gh release create "v$Version" $apk "$apk.sha256" --repo $Repo --title "MyVault Android $Version" --notes $notes --prerelease
 if ($LASTEXITCODE -ne 0) { throw "Release creation failed" }
 Write-Host "Done: https://github.com/$Repo/releases/tag/v$Version"
