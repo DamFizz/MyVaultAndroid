@@ -65,6 +65,7 @@ class VaultSession private constructor(
     fun getKeys(): VaultKeys = requireKeys()
 
     /** Re-read and decrypt every record from the store. */
+    @Synchronized
     fun reload() {
         val next = LinkedHashMap<String, DecryptedRecord>()
         corruptedIds.clear()
@@ -87,12 +88,14 @@ class VaultSession private constructor(
         }
     }
 
+    @Synchronized
     fun decryptRecord(record: EncryptedRecord): RecordPayload {
         val k = requireKeys()
         val json = Crypto.openJson(k.records, record.sealed, Aad.record(k.vaultId, record.id, record.rev, record.vtag))
         return RecordPayload(json as? JsonObject ?: throw DecryptionError("Record payload is not an object"))
     }
 
+    @Synchronized
     fun sealRecord(id: String, rev: Long, payload: RecordPayload): EncryptedRecord {
         val k = requireKeys()
         val vtag = Encoding.randomId()
@@ -100,6 +103,7 @@ class VaultSession private constructor(
         return EncryptedRecord(id, rev, vtag, s.iv, s.ct)
     }
 
+    @Synchronized
     fun openSecurity(h: VaultHeader): SecurityConfig {
         val k = requireKeys()
         val json = Crypto.openJson(k.security, h.security, Aad.security(h.vaultId, h.rev, h.vtag))
@@ -108,17 +112,24 @@ class VaultSession private constructor(
 
     // ------------------------------------------------------------------ reads
 
+    @Synchronized
     fun allDecrypted(): List<DecryptedRecord> = decrypted.values.toList()
+    @Synchronized
     fun encryptedRecords(): List<EncryptedRecord> = decrypted.values.map { it.record }
+    @Synchronized
     fun items(): List<VaultItem> = decrypted.values.mapNotNull { it.payload.item() }
+    @Synchronized
     fun collections(): List<VaultCollection> =
         decrypted.values.mapNotNull { it.payload.collection() }.sortedWith(compareBy<VaultCollection> { it.order }.thenBy { it.name })
 
+    @Synchronized
     fun settings(): VaultSettings = decrypted[SETTINGS_RECORD_ID]?.payload?.settings() ?: VaultSettings.DEFAULT
+    @Synchronized
     fun getItem(id: String): VaultItem? = decrypted[id]?.payload?.item()
 
     // ------------------------------------------------------------------ writes
 
+    @Synchronized
     private fun writePayloads(entries: List<Pair<String, RecordPayload>>) {
         val sealed = entries.map { (id, payload) ->
             val prev = decrypted[id]
@@ -128,6 +139,7 @@ class VaultSession private constructor(
         for (s in sealed) decrypted[s.record.id] = s
     }
 
+    @Synchronized
     fun saveItems(items: List<VaultItem>) {
         val now = clock.now()
         writePayloads(items.map { it.id to RecordPayload.item(it, now, device.name) })
@@ -136,6 +148,7 @@ class VaultSession private constructor(
     fun saveItem(item: VaultItem) = saveItems(listOf(item))
 
     /** Permanently delete: replace with an encrypted tombstone so the deletion syncs. */
+    @Synchronized
     fun purgeItems(ids: List<String>) {
         val now = clock.now()
         writePayloads(ids.map { it to RecordPayload.tombstone(now, device.name) })
@@ -143,12 +156,14 @@ class VaultSession private constructor(
         if (ids.any { it in secrets.usage }) setDeviceSecrets(secrets.copy(usage = secrets.usage - ids.toSet()))
     }
 
+    @Synchronized
     fun saveCollections(collections: List<VaultCollection>) {
         val now = clock.now()
         writePayloads(collections.map { it.id to RecordPayload.collection(it, now, device.name) })
     }
 
     /** Delete a category/section without deleting its items (moved to [moveTo] or unassigned). */
+    @Synchronized
     fun deleteCollection(id: String, moveTo: String?) {
         val target = collections().find { it.id == id } ?: return
         val now = clock.now()
@@ -168,6 +183,7 @@ class VaultSession private constructor(
         writePayloads(entries)
     }
 
+    @Synchronized
     fun saveSettings(transform: (VaultSettings) -> VaultSettings) {
         val now = clock.now()
         val next = transform(settings()).copy(updatedAt = now)
@@ -175,6 +191,7 @@ class VaultSession private constructor(
     }
 
     /** Sync/restore: store already-encrypted records after verifying each one decrypts. */
+    @Synchronized
     fun applyEncryptedRecords(records: List<EncryptedRecord>, deleteIds: List<String> = emptyList()) {
         val verified = records.map { DecryptedRecord(it, decryptRecord(it)) }
         store.putRecords(verified.map { it.record })
@@ -184,6 +201,7 @@ class VaultSession private constructor(
     }
 
     /** Seal payloads at explicit revisions (conflict copies, revision bumps). */
+    @Synchronized
     fun writeRaw(entries: List<Triple<String, Long, RecordPayload>>): List<EncryptedRecord> {
         val out = entries.map { (id, rev, payload) -> sealRecord(id, rev, payload) }
         store.putRecords(out)
@@ -196,6 +214,7 @@ class VaultSession private constructor(
     class HeaderDraft(var header: VaultHeader, var security: SecurityConfig)
 
     /** Commit a header change: bumps rev, new vtag, re-seals the security config bound to them. */
+    @Synchronized
     fun commitHeader(minRev: Long = 0, mutate: (HeaderDraft) -> Unit) {
         val k = requireKeys()
         val draft = HeaderDraft(header, security)
@@ -210,6 +229,7 @@ class VaultSession private constructor(
     }
 
     /** Adopt a header received from sync (already authenticated by the caller). */
+    @Synchronized
     fun adoptHeader(h: VaultHeader, sec: SecurityConfig) {
         store.putHeader(h)
         header = h
@@ -220,6 +240,7 @@ class VaultSession private constructor(
 
     private fun secretsKey() = "secrets:${requireKeys().vaultId}"
 
+    @Synchronized
     fun getDeviceSecrets(): DeviceSecrets {
         deviceSecretsCache?.let { return it }
         val k = requireKeys()
@@ -238,6 +259,7 @@ class VaultSession private constructor(
         return value
     }
 
+    @Synchronized
     fun setDeviceSecrets(value: DeviceSecrets) {
         val k = requireKeys()
         val json: JsonElement = VaultJson.json.encodeToJsonElement(DeviceSecrets.serializer(), value)
@@ -246,11 +268,13 @@ class VaultSession private constructor(
         deviceSecretsCache = value
     }
 
+    @Synchronized
     fun markUsed(id: String) {
         val s = getDeviceSecrets()
         setDeviceSecrets(s.copy(usage = s.usage + (id to clock.now())))
     }
 
+    @Synchronized
     fun lock() {
         keys = null
         decrypted = LinkedHashMap()

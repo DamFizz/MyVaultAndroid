@@ -138,6 +138,7 @@ fun AppRoot(vm: VaultViewModel) {
                 Screen.Editor -> EditorScreen(vm)
                 Screen.Organize -> OrganizeScreen(vm)
                 Screen.BackupRestore -> BackupScreen(vm)
+                Screen.Sync -> SyncScreen(vm)
             }
         }
         val host = LocalOverlayHost.current
@@ -188,6 +189,9 @@ private fun WelcomeScreen(vm: VaultViewModel) = AuthPage {
     Spacer(Modifier.height(14.dp))
     GlassButton(stringResource(R.string.welcome_import), { vm.go(Screen.Import) }, Modifier.fillMaxWidth())
     GlassButton(stringResource(R.string.welcome_create), { vm.go(Screen.Create) }, Modifier.fillMaxWidth(), prominent = false)
+    val connect = rememberDriveAuth(vm) { vm.downloadFromDrive() }
+    GlassButton(stringResource(R.string.welcome_drive), connect, Modifier.fillMaxWidth(), prominent = false)
+    ErrorText(vm.syncError ?: vm.error)
 }
 
 @Composable

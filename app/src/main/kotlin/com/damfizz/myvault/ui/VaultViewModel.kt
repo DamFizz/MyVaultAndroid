@@ -55,6 +55,7 @@ sealed interface Screen {
     data object Editor : Screen
     data object Organize : Screen
     data object BackupRestore : Screen
+    data object Sync : Screen
 }
 
 /** One opened backup waiting for confirmation before it replaces the vault on this phone. */
@@ -81,8 +82,13 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
     var session by mutableStateOf<VaultSession?>(null)
         private set
     /** bumped whenever the session's data changes, so lists recompose */
-    var revision by mutableStateOf(0)
-        private set
+    private var revisionState by mutableStateOf(0)
+    var revision: Int
+        get() = revisionState
+        private set(value) {
+            revisionState = value
+            if (session != null && !syncing) scheduleAutoSync()
+        }
     var lastKdfMillis by mutableStateOf<Long?>(null)
         private set
     var pendingImport by mutableStateOf<PendingImport?>(null)
@@ -618,6 +624,148 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
         val n = com.damfizz.myvault.core.Csv.import(s, preview, now())
         revision++
         notice = Notice(str(R.string.csv_done, n)); noticeId++
+    }
+
+    // ------------------------------------------------------------------ Google Drive sync
+
+    /** Google access token, in memory only (never persisted). */
+    private var driveToken: String? = null
+    var syncing by mutableStateOf(false)
+        private set
+    var syncError by mutableStateOf<String?>(null)
+        private set
+    /** set when the cloud holds a different vault: the user must choose which one to keep */
+    var syncMismatch by mutableStateOf(false)
+        private set
+    var needsDriveAuth by mutableStateOf(false)
+        private set
+
+    private fun remote() = com.damfizz.myvault.data.DriveRemote { driveToken ?: throw com.damfizz.myvault.core.RemoteError("auth", "Not connected", 401) }
+
+    fun hasDriveToken() = driveToken != null
+    fun lastSyncAt(): Long? = session?.let { com.damfizz.myvault.core.SyncEngine.loadState(it).lastSyncAt }
+    fun conflicts() = runCatching { session?.getDeviceSecrets()?.conflicts }.getOrNull().orEmpty()
+
+    fun dismissConflicts() {
+        val s = session ?: return
+        s.setDeviceSecrets(s.getDeviceSecrets().copy(conflicts = emptyList()))
+        revision++
+    }
+
+    private fun syncErrorText(e: Throwable): String = when (e) {
+        is com.damfizz.myvault.core.RemoteError -> when (e.code) {
+            "auth" -> str(R.string.sync_err_auth)
+            "network" -> str(R.string.sync_err_network)
+            "quota" -> str(R.string.sync_err_quota)
+            "rate-limit" -> str(R.string.sync_err_rate)
+            "config" -> str(R.string.sync_err_config)
+            else -> e.message ?: "Drive error"
+        }
+        is com.damfizz.myvault.core.VaultMismatchError -> str(R.string.sync_err_mismatch)
+        is com.damfizz.myvault.core.RemoteKeyMismatchError -> str(R.string.sync_err_key)
+        is com.damfizz.myvault.core.InvalidVaultFileError -> str(R.string.sync_err_corrupt)
+        is com.damfizz.myvault.core.SyncBusyError -> str(R.string.sync_err_busy)
+        is com.damfizz.myvault.core.NoCloudVaultError -> str(R.string.sync_no_cloud)
+        else -> e.message ?: e.javaClass.simpleName
+    }
+
+    /** Called by the UI when Google returned an access token for the Drive appDataFolder scope. */
+    fun onDriveToken(token: String, thenSync: Boolean = true) {
+        driveToken = token
+        needsDriveAuth = false
+        syncError = null
+        viewModelScope.launch {
+            val email = runCatching { withContext(Dispatchers.IO) { remote().about().first } }.getOrNull()
+            prefs.updateDrive(true, email ?: prefs.driveEmail)
+            if (thenSync && session != null) syncNow(quiet = false)
+        }
+    }
+
+    fun onDriveAuthFailed(message: String) {
+        syncError = str(R.string.sync_err_signin, message)
+    }
+
+    fun syncNow(quiet: Boolean = true) {
+        val s = session ?: return
+        if (syncing) return
+        if (driveToken == null) { needsDriveAuth = true; return }
+        syncing = true
+        syncError = null
+        viewModelScope.launch {
+            try {
+                val r = withContext(Dispatchers.IO) { com.damfizz.myvault.core.SyncEngine(s, remote()).sync() }
+                syncMismatch = false
+                revision++
+                if (r.conflicts.isNotEmpty()) { notice = Notice(str(R.string.sync_conflicts_toast, r.conflicts.size)); noticeId++ }
+                else if (!quiet) { notice = Notice(if (r.pulled + r.pushed == 0) str(R.string.sync_up_to_date) else str(R.string.sync_done, r.pulled, r.pushed)); noticeId++ }
+            } catch (e: Throwable) {
+                if (e is com.damfizz.myvault.core.RemoteError && e.code == "auth") { driveToken = null; needsDriveAuth = true }
+                if (e is com.damfizz.myvault.core.VaultMismatchError) syncMismatch = true
+                syncError = syncErrorText(e)
+            } finally {
+                syncing = false
+            }
+        }
+    }
+
+    private var autoSyncJob: kotlinx.coroutines.Job? = null
+
+    /** Debounced sync after a local change (web: auto-sync). */
+    private fun scheduleAutoSync() {
+        if (!prefs.driveConnected || !prefs.autoSync || driveToken == null) return
+        autoSyncJob?.cancel()
+        autoSyncJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(3_000)
+            syncNow(quiet = true)
+        }
+    }
+
+    fun disconnectDrive() {
+        driveToken = null
+        syncError = null
+        syncMismatch = false
+        prefs.updateDrive(false, null)
+    }
+
+    fun deleteCloudCopy() {
+        val s = session ?: return
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { remote().find()?.let { remote().remove(it.id) } }
+                s.store.deleteLocal(com.damfizz.myvault.core.SyncEngine.stateKey(s.vaultId))
+                disconnectDrive()
+            } catch (e: Throwable) {
+                syncError = syncErrorText(e)
+            }
+        }
+    }
+
+    /** Vault mismatch: keep this phone's vault and replace the cloud copy. */
+    fun keepLocalVault() {
+        val s = session ?: return
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { remote().find()?.let { remote().remove(it.id) } }
+                s.store.deleteLocal(com.damfizz.myvault.core.SyncEngine.stateKey(s.vaultId))
+                syncMismatch = false
+                syncNow(quiet = false)
+            } catch (e: Throwable) {
+                syncError = syncErrorText(e)
+            }
+        }
+    }
+
+    /** New device, or vault mismatch → use the cloud vault. A safety snapshot is taken if a vault exists. */
+    fun downloadFromDrive() = work {
+        try {
+            withContext(Dispatchers.IO) { com.damfizz.myvault.core.SyncEngine.downloadToDevice(store, remote(), store) }
+        } catch (e: Throwable) {
+            error = syncErrorText(e)
+            return@work
+        }
+        syncMismatch = false
+        lock()
+        notice = Notice(str(R.string.lock_downloaded)); noticeId++
     }
 
     // ------------------------------------------------------------------ organize

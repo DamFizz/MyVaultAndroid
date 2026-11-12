@@ -30,6 +30,16 @@ class Prefs(context: Context) {
     var sortBy by mutableStateOf(runCatching { SortBy.valueOf(sp.getString("sortBy", "TITLE")!!) }.getOrDefault(SortBy.TITLE)); private set
     var backupReminderDays by mutableStateOf(sp.getInt("backupReminderDays", 30)); private set
 
+    var driveConnected by mutableStateOf(sp.getBoolean("driveConnected", false)); private set
+    var driveEmail by mutableStateOf(sp.getString("driveEmail", null)); private set
+    var autoSync by mutableStateOf(sp.getBoolean("autoSync", true)); private set
+
+    fun updateDrive(connected: Boolean, email: String?) {
+        driveConnected = connected; driveEmail = email
+        sp.edit().putBoolean("driveConnected", connected).putString("driveEmail", email).apply()
+    }
+    fun updateAutoSync(v: Boolean) { autoSync = v; sp.edit().putBoolean("autoSync", v).apply() }
+
     fun updateTheme(v: String) { theme = v; sp.edit().putString("theme", v).apply() }
     fun updateAccent(v: String) { accent = v; sp.edit().putString("accent", v).apply() }
     fun updateMotion(v: String) { motion = v; sp.edit().putString("motion", v).apply() }

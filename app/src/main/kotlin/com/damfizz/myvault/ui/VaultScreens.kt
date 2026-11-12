@@ -147,6 +147,7 @@ internal fun MainScreen(vm: VaultViewModel) {
     val lock = stringResource(R.string.lock)
     val add = stringResource(R.string.action_add)
     var chooseType by remember { mutableStateOf(false) }
+    AutoSyncOnUnlock(vm)
     GlassScaffold(
         topBar = {
             Row(Modifier.align(Alignment.CenterEnd), horizontalArrangement = Arrangement.spacedBy(10.dp)) {

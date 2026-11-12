@@ -21,8 +21,8 @@ android {
         applicationId = "com.damfizz.myvault"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0-alpha"
+        versionCode = 2
+        versionName = "0.2.0-alpha"
     }
 
     signingConfigs {
@@ -68,6 +68,8 @@ dependencies {
     implementation("androidx.biometric:biometric:1.1.0")
     // QR codes for Authenticator enrolment and the Secret Key (encoder only, no camera)
     implementation("com.google.zxing:core:3.5.3")
+    // Google sign-in for the Drive appDataFolder scope (AuthorizationClient)
+    implementation("com.google.android.gms:play-services-auth:21.3.0")
     implementation("androidx.fragment:fragment-ktx:1.8.8")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
