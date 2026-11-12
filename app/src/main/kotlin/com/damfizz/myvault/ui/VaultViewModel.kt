@@ -46,7 +46,6 @@ sealed interface Screen {
     class SecondFactor(val challenge: VaultAccess.SecondFactorChallenge) : Screen
     data object Vault : Screen
     data class Detail(val id: String) : Screen
-    data object Settings : Screen
 }
 
 /** One opened backup waiting for confirmation before it replaces the vault on this phone. */
@@ -62,6 +61,8 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
 
     var screen by mutableStateOf<Screen>(if (store.getHeader() == null) Screen.Welcome else Screen.Unlock)
         private set
+    /** selected tab on the main screen: 0 vault, 1 favourites, 2 settings */
+    var tab by mutableStateOf(0)
     var busy by mutableStateOf(false)
         private set
     var error by mutableStateOf<String?>(null)

@@ -54,6 +54,7 @@
     <string name="vault_empty">No items here yet.</string>
     <string name="vault_all">All</string>
     <string name="vault_favorites">Favourites</string>
+    <string name="tab_vault">Vault</string>
     <string name="lock">Lock</string>
     <string name="settings">Settings</string>
     <string name="untitled">Untitled</string>

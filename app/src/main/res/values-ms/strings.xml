@@ -53,6 +53,7 @@
     <string name="vault_empty">Belum ada item di sini.</string>
     <string name="vault_all">Semua</string>
     <string name="vault_favorites">Kegemaran</string>
+    <string name="tab_vault">Vault</string>
     <string name="lock">Kunci</string>
     <string name="settings">Tetapan</string>
     <string name="untitled">Tanpa tajuk</string>

@@ -10,58 +10,57 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PersistableBundle
 import android.provider.OpenableColumns
-import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Notes
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Notes
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material.icons.filled.Wifi
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -72,35 +71,61 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import com.damfizz.myvault.BuildConfigCompat
 import com.damfizz.myvault.R
 import com.damfizz.myvault.core.ItemType
 import com.damfizz.myvault.core.VaultItem
+import com.damfizz.myvault.security.BiometricKey
+import com.damfizz.myvault.ui.glass.Body
+import com.damfizz.myvault.ui.glass.BusyOverlay
+import com.damfizz.myvault.ui.glass.Capsule
+import com.damfizz.myvault.ui.glass.Chip
+import com.damfizz.myvault.ui.glass.ErrorText
+import com.damfizz.myvault.ui.glass.Footnote
+import com.damfizz.myvault.ui.glass.GlassAlert
+import com.damfizz.myvault.ui.glass.GlassButton
+import com.damfizz.myvault.ui.glass.GlassIconButton
+import com.damfizz.myvault.ui.glass.GlassScaffold
+import com.damfizz.myvault.ui.glass.GlassSheet
+import com.damfizz.myvault.ui.glass.GlassSurface
+import com.damfizz.myvault.ui.glass.GlassTabBar
+import com.damfizz.myvault.ui.glass.GlassTextField
+import com.damfizz.myvault.ui.glass.GroupDivider
+import com.damfizz.myvault.ui.glass.IconTile
+import com.damfizz.myvault.ui.glass.InsetGroup
+import com.damfizz.myvault.ui.glass.LargeTitle
+import com.damfizz.myvault.ui.glass.LiquidGlassRoot
+import com.damfizz.myvault.ui.glass.ListRow
+import com.damfizz.myvault.ui.glass.LocalGlassColors
+import com.damfizz.myvault.ui.glass.LocalOverlayHost
+import com.damfizz.myvault.ui.glass.RowIconButton
+import com.damfizz.myvault.ui.glass.SectionHeader
+import com.damfizz.myvault.ui.glass.TabItem
+import com.damfizz.myvault.ui.glass.TextLink
+import com.damfizz.myvault.ui.glass.ToggleRow
+import com.damfizz.myvault.ui.glass.Type
 import java.text.DateFormat
 import java.util.Date
 import javax.crypto.Cipher
 
 @Composable
 fun AppRoot(vm: VaultViewModel) {
-    LiquidBackground {
+    LiquidGlassRoot {
         AnimatedContent(
             targetState = vm.screen,
-            transitionSpec = { (fadeIn() + scaleIn(spring(dampingRatio = 0.75f, stiffness = 380f), initialScale = 0.96f)) togetherWith fadeOut() },
+            transitionSpec = { (fadeIn(tween(240)) + slideInVertically(tween(320)) { it / 28 }) togetherWith fadeOut(tween(140)) },
             contentKey = { it::class },
             label = "screen",
-            modifier = Modifier.fillMaxSize().safeDrawingPadding().imePadding(),
+            modifier = Modifier.fillMaxSize(),
         ) { s ->
             when (s) {
                 Screen.Welcome -> WelcomeScreen(vm)
@@ -108,69 +133,63 @@ fun AppRoot(vm: VaultViewModel) {
                 Screen.Import -> ImportScreen(vm)
                 Screen.Unlock -> UnlockScreen(vm)
                 is Screen.SecondFactor -> SecondFactorScreen(vm, s)
-                Screen.Vault -> VaultScreen(vm)
+                Screen.Vault -> MainScreen(vm)
                 is Screen.Detail -> DetailScreen(vm, s.id)
-                Screen.Settings -> SettingsScreen(vm)
             }
         }
-        if (vm.busy) BusyOverlay()
+        BusyOverlay(vm.busy, stringResource(R.string.busy_kdf))
     }
 }
 
-@Composable
-private fun BusyOverlay() {
-    Box(Modifier.fillMaxSize().background(Color(0x99060914)).clickable(enabled = true, onClick = {}), contentAlignment = Alignment.Center) {
-        GlassCard {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                CircularProgressIndicator(Modifier.size(22.dp), color = Accent, strokeWidth = 2.5.dp)
-                Spacer(Modifier.width(14.dp))
-                Text(stringResource(R.string.busy_kdf), color = Color.White)
-            }
-        }
-    }
-}
+// ------------------------------------------------------------------ shared pieces
 
+/** Sign-in style page: drifting wallpaper, optional glass back button, centred column. */
 @Composable
-private fun Page(onBack: (() -> Unit)? = null, content: @Composable () -> Unit) {
+private fun AuthPage(onBack: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
     if (onBack != null) BackHandler(onBack = onBack)
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        if (onBack != null) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back), tint = Color.White) }
-        } else {
-            Spacer(Modifier.height(24.dp))
-        }
-        content()
+    val back = stringResource(R.string.back)
+    GlassScaffold(
+        animatedWallpaper = true,
+        topBar = onBack?.let { ob -> { GlassIconButton(Icons.AutoMirrored.Filled.ArrowBack, back, ob, Modifier.align(Alignment.CenterStart)) } },
+    ) { pad ->
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(pad).padding(horizontal = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            content = content,
+        )
+    }
+}
+
+@Composable
+private fun Hero(icon: ImageVector) {
+    GlassSurface(Modifier.size(88.dp), shape = Capsule, refraction = 20.dp, elevation = 18.dp, contentAlignment = Alignment.Center) {
+        Icon(icon, null, tint = LocalGlassColors.current.accent, modifier = Modifier.size(40.dp))
     }
 }
 
 // ------------------------------------------------------------------ welcome / create / import
 
 @Composable
-private fun WelcomeScreen(vm: VaultViewModel) = Page {
-    Spacer(Modifier.height(40.dp))
-    Box(Modifier.size(72.dp).glass(CircleShape), contentAlignment = Alignment.Center) {
-        Icon(Icons.Filled.Lock, null, tint = Accent, modifier = Modifier.size(34.dp))
-    }
-    Title(stringResource(R.string.welcome_title))
+private fun WelcomeScreen(vm: VaultViewModel) = AuthPage {
+    Spacer(Modifier.height(72.dp))
+    Hero(Icons.Filled.Shield)
+    Spacer(Modifier.height(6.dp))
+    LargeTitle(stringResource(R.string.welcome_title))
     Body(stringResource(R.string.welcome_body))
-    Spacer(Modifier.height(8.dp))
+    Spacer(Modifier.height(14.dp))
     GlassButton(stringResource(R.string.welcome_import), { vm.go(Screen.Import) }, Modifier.fillMaxWidth())
-    GlassButton(stringResource(R.string.welcome_create), { vm.go(Screen.Create) }, Modifier.fillMaxWidth(), primary = false)
+    GlassButton(stringResource(R.string.welcome_create), { vm.go(Screen.Create) }, Modifier.fillMaxWidth(), prominent = false)
 }
 
 @Composable
-private fun CreateScreen(vm: VaultViewModel) = Page(onBack = { vm.go(Screen.Welcome) }) {
+private fun CreateScreen(vm: VaultViewModel) = AuthPage(onBack = { vm.go(Screen.Welcome) }) {
     var pw by rememberSaveable { mutableStateOf("") }
     var confirm by rememberSaveable { mutableStateOf("") }
-    Title(stringResource(R.string.create_title))
-    GlassCard {
-        GlassField(pw, { pw = it }, stringResource(R.string.create_password), secret = true)
-        Spacer(Modifier.height(10.dp))
-        GlassField(confirm, { confirm = it }, stringResource(R.string.create_confirm), secret = true)
-        Spacer(Modifier.height(10.dp))
-        Body(stringResource(R.string.create_hint))
-        ErrorText(vm.error)
-    }
+    LargeTitle(stringResource(R.string.create_title))
+    Body(stringResource(R.string.create_hint))
+    GlassTextField(pw, { pw = it }, stringResource(R.string.create_password), secret = true)
+    GlassTextField(confirm, { confirm = it }, stringResource(R.string.create_confirm), secret = true, onDone = { vm.create(pw, confirm) })
+    ErrorText(vm.error)
     GlassButton(stringResource(R.string.create_button), { vm.create(pw, confirm) }, Modifier.fillMaxWidth(), enabled = pw.isNotEmpty())
 }
 
@@ -180,7 +199,7 @@ private fun displayName(context: Context, uri: Uri): String =
     } ?: uri.lastPathSegment.orEmpty()
 
 @Composable
-private fun ImportScreen(vm: VaultViewModel) = Page(onBack = { vm.cancelImport(); vm.go(Screen.Welcome) }) {
+private fun ImportScreen(vm: VaultViewModel) = AuthPage(onBack = { vm.cancelImport(); vm.go(Screen.Welcome) }) {
     val context = LocalContext.current
     var fileText by remember { mutableStateOf<String?>(null) }
     var fileName by rememberSaveable { mutableStateOf<String?>(null) }
@@ -191,25 +210,29 @@ private fun ImportScreen(vm: VaultViewModel) = Page(onBack = { vm.cancelImport()
             fileText = runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) } }.getOrNull()
         }
     }
-    Title(stringResource(R.string.import_title))
+    LargeTitle(stringResource(R.string.import_title))
     Body(stringResource(R.string.import_body))
-    GlassButton(fileName?.let { stringResource(R.string.import_picked, it) } ?: stringResource(R.string.import_pick), { picker.launch(arrayOf("*/*")) }, Modifier.fillMaxWidth(), primary = fileText == null)
+    GlassButton(
+        fileName?.let { stringResource(R.string.import_picked, it) } ?: stringResource(R.string.import_pick),
+        { picker.launch(arrayOf("*/*")) },
+        Modifier.fillMaxWidth(),
+        prominent = fileText == null,
+    )
     if (fileText != null) {
-        GlassCard {
-            GlassField(pw, { pw = it }, stringResource(R.string.import_backup_password), secret = true)
-            ErrorText(vm.error)
-        }
+        GlassTextField(pw, { pw = it }, stringResource(R.string.import_backup_password), secret = true, onDone = { vm.openBackupFile(fileText!!, pw) })
+        ErrorText(vm.error)
         GlassButton(stringResource(R.string.import_open), { vm.openBackupFile(fileText!!, pw) }, Modifier.fillMaxWidth(), enabled = pw.isNotEmpty())
     }
-    vm.pendingImport?.let { p ->
-        AlertDialog(
-            onDismissRequest = vm::cancelImport,
-            title = { Text(stringResource(R.string.import_confirm_title)) },
-            text = { Text(stringResource(R.string.import_confirm_body, DateFormat.getDateTimeInstance().format(Date(p.opened.createdAt)), p.opened.records.size)) },
-            confirmButton = { TextButton(onClick = vm::confirmImport) { Text(stringResource(R.string.import_replace)) } },
-            dismissButton = { TextButton(onClick = vm::cancelImport) { Text(stringResource(R.string.cancel)) } },
-        )
-    }
+    val p = vm.pendingImport
+    GlassAlert(
+        visible = p != null,
+        title = stringResource(R.string.import_confirm_title),
+        message = p?.let { stringResource(R.string.import_confirm_body, DateFormat.getDateTimeInstance().format(Date(it.opened.createdAt)), it.opened.records.size) }.orEmpty(),
+        confirm = stringResource(R.string.import_replace),
+        onConfirm = vm::confirmImport,
+        dismiss = stringResource(R.string.cancel),
+        onDismiss = vm::cancelImport,
+    )
 }
 
 // ------------------------------------------------------------------ unlock / two-step
@@ -229,9 +252,8 @@ private fun showBiometricPrompt(activity: FragmentActivity, title: String, negat
 }
 
 @Composable
-private fun UnlockScreen(vm: VaultViewModel) = Page {
-    val context = LocalContext.current
-    val activity = context as FragmentActivity
+private fun UnlockScreen(vm: VaultViewModel) = AuthPage {
+    val activity = LocalContext.current as FragmentActivity
     var pw by rememberSaveable { mutableStateOf("") }
     var sk by rememberSaveable { mutableStateOf("") }
     var rememberSk by rememberSaveable { mutableStateOf(true) }
@@ -244,83 +266,100 @@ private fun UnlockScreen(vm: VaultViewModel) = Page {
     fun startBiometric() {
         vm.biometricUnlockCipher()?.let { c -> showBiometricPrompt(activity, bioTitle, cancel, c) { vm.unlockWithBiometric(it) } }
     }
+    fun submit() {
+        if (pw.isNotEmpty()) {
+            vm.unlock(pw, sk, rememberSk)
+            pw = ""
+        }
+    }
     LaunchedEffect(Unit) { if (bio) startBiometric() }
 
-    Spacer(Modifier.height(32.dp))
-    Box(Modifier.size(72.dp).glass(CircleShape), contentAlignment = Alignment.Center) {
-        Icon(Icons.Filled.Lock, null, tint = Accent, modifier = Modifier.size(34.dp))
-    }
-    Title(stringResource(R.string.unlock_title))
+    Spacer(Modifier.height(72.dp))
+    Hero(Icons.Filled.Lock)
+    Spacer(Modifier.height(6.dp))
     if (!recovery) {
-        GlassCard {
-            GlassField(pw, { pw = it }, stringResource(R.string.master_password), secret = true)
-            if (vm.needsSecretKey) {
-                Spacer(Modifier.height(10.dp))
-                GlassField(sk, { sk = it.uppercase() }, stringResource(R.string.secret_key), placeholder = stringResource(R.string.secret_key_hint))
-                CheckRow(stringResource(R.string.remember_secret_key), rememberSk) { rememberSk = it }
-            }
-            ErrorText(vm.error)
+        LargeTitle(stringResource(R.string.unlock_title))
+        GlassTextField(pw, { pw = it }, stringResource(R.string.master_password), secret = true, onDone = ::submit)
+        if (vm.needsSecretKey) {
+            GlassTextField(sk, { sk = it.uppercase() }, stringResource(R.string.secret_key), mono = true)
+            Footnote(stringResource(R.string.secret_key_hint), Modifier.padding(horizontal = 16.dp))
+            InsetGroup { ToggleRow(stringResource(R.string.remember_secret_key), rememberSk, { rememberSk = it }) }
         }
-        GlassButton(stringResource(R.string.unlock_button), { vm.unlock(pw, sk, rememberSk); pw = "" }, Modifier.fillMaxWidth(), enabled = pw.isNotEmpty())
+        ErrorText(vm.error)
+        GlassButton(stringResource(R.string.unlock_button), ::submit, Modifier.fillMaxWidth(), enabled = pw.isNotEmpty())
         if (bio) {
-            GlassButton(stringResource(R.string.unlock_biometric), { startBiometric() }, Modifier.fillMaxWidth(), primary = false)
+            GlassButton(stringResource(R.string.unlock_biometric), ::startBiometric, Modifier.fillMaxWidth(), prominent = false, icon = Icons.Filled.Fingerprint)
         }
-        TextButton(onClick = { recovery = true; vm.clearError() }) { Text(stringResource(R.string.forgot_password), color = Accent) }
+        TextLink(stringResource(R.string.forgot_password), { recovery = true; vm.clearError() })
     } else {
         BackHandler { recovery = false }
-        GlassCard {
-            Text(stringResource(R.string.recovery_title), color = Color.White, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(10.dp))
-            GlassField(rk, { rk = it.uppercase() }, stringResource(R.string.recovery_key))
-            Spacer(Modifier.height(10.dp))
-            GlassField(newPw, { newPw = it }, stringResource(R.string.new_master_password), secret = true)
-            ErrorText(vm.error)
-        }
+        LargeTitle(stringResource(R.string.recovery_title))
+        GlassTextField(rk, { rk = it.uppercase() }, stringResource(R.string.recovery_key), mono = true)
+        GlassTextField(newPw, { newPw = it }, stringResource(R.string.new_master_password), secret = true)
+        ErrorText(vm.error)
         GlassButton(stringResource(R.string.recovery_button), { vm.unlockWithRecoveryKey(rk, newPw) }, Modifier.fillMaxWidth(), enabled = rk.isNotBlank() && newPw.isNotEmpty())
-        TextButton(onClick = { recovery = false; vm.clearError() }) { Text(stringResource(R.string.back), color = Accent) }
+        TextLink(stringResource(R.string.back), { recovery = false; vm.clearError() })
     }
 }
 
 @Composable
-private fun CheckRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable { onChange(!checked) }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Checkbox(checked, onChange)
-        Text(label, color = Color.White.copy(alpha = 0.85f), fontSize = 14.sp)
-    }
-}
-
-@Composable
-private fun SecondFactorScreen(vm: VaultViewModel, s: Screen.SecondFactor) = Page(onBack = { vm.lock() }) {
+private fun SecondFactorScreen(vm: VaultViewModel, s: Screen.SecondFactor) = AuthPage(onBack = { vm.lock() }) {
     var code by rememberSaveable { mutableStateOf("") }
     var trust by rememberSaveable { mutableStateOf(false) }
     var useRecovery by rememberSaveable { mutableStateOf(false) }
     var rc by rememberSaveable { mutableStateOf("") }
-    Title(stringResource(R.string.twofa_title))
+    LargeTitle(stringResource(R.string.twofa_title))
     if (!useRecovery) {
         Body(stringResource(R.string.twofa_body))
-        GlassCard {
-            GlassField(code, { v -> code = v.filter { it.isDigit() }.take(6) }, stringResource(R.string.twofa_code), keyboard = KeyboardType.NumberPassword)
-            CheckRow(stringResource(R.string.twofa_trust), trust) { trust = it }
-            ErrorText(vm.error)
-        }
+        GlassTextField(
+            code, { v -> code = v.filter { it.isDigit() }.take(6) }, stringResource(R.string.twofa_code),
+            mono = true, keyboard = KeyboardType.NumberPassword, onDone = { if (code.length == 6) vm.verifyTotp(s.challenge, code, trust) },
+        )
+        InsetGroup { ToggleRow(stringResource(R.string.twofa_trust), trust, { trust = it }) }
+        ErrorText(vm.error)
         GlassButton(stringResource(R.string.twofa_verify), { vm.verifyTotp(s.challenge, code, trust) }, Modifier.fillMaxWidth(), enabled = code.length == 6)
-        TextButton(onClick = { useRecovery = true; vm.clearError() }) { Text(stringResource(R.string.twofa_use_recovery), color = Accent) }
+        TextLink(stringResource(R.string.twofa_use_recovery), { useRecovery = true; vm.clearError() })
     } else {
-        GlassCard {
-            GlassField(rc, { rc = it.uppercase() }, stringResource(R.string.twofa_recovery_code))
-            Body(stringResource(R.string.twofa_codes_left, s.challenge.recoveryCodesLeft), Modifier.padding(top = 8.dp))
-            ErrorText(vm.error)
-        }
+        GlassTextField(rc, { rc = it.uppercase() }, stringResource(R.string.twofa_recovery_code), mono = true)
+        Footnote(stringResource(R.string.twofa_codes_left, s.challenge.recoveryCodesLeft), Modifier.padding(horizontal = 16.dp))
+        ErrorText(vm.error)
         GlassButton(stringResource(R.string.twofa_recovery_button), { vm.useRecoveryCode(s.challenge, rc) }, Modifier.fillMaxWidth(), enabled = rc.isNotBlank())
-        TextButton(onClick = { useRecovery = false; vm.clearError() }) { Text(stringResource(R.string.back), color = Accent) }
+        TextLink(stringResource(R.string.back), { useRecovery = false; vm.clearError() })
     }
 }
 
-// ------------------------------------------------------------------ vault list
+// ------------------------------------------------------------------ main (tabs)
+
+@Composable
+private fun MainScreen(vm: VaultViewModel) {
+    val tabs = listOf(
+        TabItem(Icons.Filled.Shield, stringResource(R.string.tab_vault)),
+        TabItem(Icons.Filled.Star, stringResource(R.string.vault_favorites)),
+        TabItem(Icons.Filled.Settings, stringResource(R.string.settings)),
+    )
+    val lock = stringResource(R.string.lock)
+    GlassScaffold(
+        topBar = { GlassIconButton(Icons.Filled.Lock, lock, vm::lock, Modifier.align(Alignment.CenterEnd)) },
+        bottomBar = { GlassTabBar(tabs, vm.tab, { vm.tab = it }, Modifier.fillMaxWidth()) },
+    ) { pad ->
+        AnimatedContent(
+            vm.tab,
+            transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(120)) },
+            label = "tab",
+            modifier = Modifier.fillMaxSize(),
+        ) { tab ->
+            when (tab) {
+                0 -> VaultList(vm, pad, favouritesOnly = false)
+                1 -> VaultList(vm, pad, favouritesOnly = true)
+                else -> SettingsTab(vm, pad)
+            }
+        }
+    }
+}
 
 private fun iconFor(type: String): ImageVector = when (type) {
     ItemType.WIFI -> Icons.Filled.Wifi
-    ItemType.NOTE -> Icons.Filled.Notes
+    ItemType.NOTE -> Icons.AutoMirrored.Filled.Notes
     ItemType.LICENSE -> Icons.Filled.VpnKey
     ItemType.RECOVERY_CODES -> Icons.Filled.Key
     else -> Icons.Filled.Person
@@ -330,71 +369,58 @@ private fun subtitle(i: VaultItem): String = listOfNotNull(i.username, i.email, 
     .firstOrNull { it.isNotBlank() }.orEmpty()
 
 @Composable
-private fun VaultScreen(vm: VaultViewModel) {
+private fun VaultList(vm: VaultViewModel, pad: PaddingValues, favouritesOnly: Boolean) {
+    val c = LocalGlassColors.current
     var query by rememberSaveable { mutableStateOf("") }
-    var filter by rememberSaveable { mutableStateOf("all") }
+    var category by rememberSaveable { mutableStateOf<String?>(null) }
     val rev = vm.revision
     val all = remember(rev) { vm.items().filter { it.archivedAt == null } }
     val categories = remember(rev) { vm.collections().filter { it.kind == "category" } }
-    val shown = remember(rev, query, filter) {
+    val shown = remember(rev, query, category, favouritesOnly) {
+        val q = query.trim().lowercase()
         all.filter { i ->
-            val q = query.trim().lowercase()
-            val matchesQuery = q.isEmpty() || listOfNotNull(i.title, i.username, i.email, i.url, i.ssid, i.product).any { it.lowercase().contains(q) }
-            val matchesFilter = when (filter) {
-                "all" -> true
-                "fav" -> i.favorite
-                else -> i.categoryId == filter
-            }
-            matchesQuery && matchesFilter
+            (q.isEmpty() || listOfNotNull(i.title, i.username, i.email, i.url, i.ssid, i.product).any { it.lowercase().contains(q) }) &&
+                (!favouritesOnly || i.favorite) &&
+                (category == null || i.categoryId == category)
         }.sortedWith(compareByDescending<VaultItem> { it.favorite }.thenBy { it.title.lowercase() })
     }
-    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("MyVault", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
-            IconButton(onClick = { vm.go(Screen.Settings) }) { Icon(Icons.Filled.Settings, stringResource(R.string.settings), tint = Color.White) }
-            IconButton(onClick = vm::lock) { Icon(Icons.Filled.Lock, stringResource(R.string.lock), tint = Color.White) }
-        }
-        GlassField(query, { query = it }, stringResource(R.string.vault_search), Modifier.padding(vertical = 8.dp))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 8.dp)) {
-            item { Chip(stringResource(R.string.vault_all), filter == "all") { filter = "all" } }
-            item { Chip(stringResource(R.string.vault_favorites), filter == "fav") { filter = "fav" } }
-            items(categories, key = { it.id }) { c -> Chip(c.name, filter == c.id) { filter = c.id } }
-        }
-        if (shown.isEmpty()) {
-            Body(stringResource(R.string.vault_empty), Modifier.padding(16.dp))
-        }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxSize()) {
-            items(shown, key = { it.id }) { item ->
-                GlassCard(Modifier.fillMaxWidth(), onClick = { vm.go(Screen.Detail(item.id)) }) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(Accent.copy(alpha = 0.18f)), contentAlignment = Alignment.Center) {
-                            Icon(iconFor(item.type), null, tint = Accent)
-                        }
-                        Spacer(Modifier.width(14.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(item.title.ifBlank { stringResource(R.string.untitled) }, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            val sub = subtitle(item)
-                            if (sub.isNotEmpty()) Text(sub, color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                        if (item.favorite) Icon(Icons.Filled.Star, null, tint = Color(0xFFFFD166), modifier = Modifier.size(18.dp))
-                    }
+    val untitled = stringResource(R.string.untitled)
+    LazyColumn(contentPadding = pad, modifier = Modifier.fillMaxSize()) {
+        item { LargeTitle(if (favouritesOnly) stringResource(R.string.vault_favorites) else "MyVault", Modifier.padding(start = 6.dp, bottom = 12.dp)) }
+        item { GlassTextField(query, { query = it }, stringResource(R.string.vault_search), leading = Icons.Filled.Search) }
+        if (!favouritesOnly) {
+            item {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 12.dp)) {
+                    item { Chip(stringResource(R.string.vault_all), category == null) { category = null } }
+                    items(categories, key = { it.id }) { cat -> Chip(cat.name, category == cat.id) { category = cat.id } }
                 }
             }
-            item { Spacer(Modifier.height(24.dp)) }
+        } else {
+            item { Spacer(Modifier.height(12.dp)) }
         }
-    }
-}
-
-@Composable
-private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(50)
-    Box(
-        Modifier
-            .then(if (selected) Modifier.clip(shape).background(Accent.copy(alpha = 0.9f)) else Modifier.glass(shape))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-    ) {
-        Text(label, color = if (selected) Color(0xFF0B1020) else Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        if (shown.isEmpty()) {
+            item { Body(stringResource(R.string.vault_empty), Modifier.padding(16.dp)) }
+        }
+        itemsIndexed(shown, key = { _, it -> it.id }) { index, item ->
+            val first = index == 0
+            val last = index == shown.lastIndex
+            val shape = RoundedCornerShape(
+                topStart = if (first) 24.dp else 0.dp, topEnd = if (first) 24.dp else 0.dp,
+                bottomStart = if (last) 24.dp else 0.dp, bottomEnd = if (last) 24.dp else 0.dp,
+            )
+            Column(Modifier.fillMaxWidth().clip(shape).background(c.fill)) {
+                ListRow(
+                    title = item.title.ifBlank { untitled },
+                    subtitle = subtitle(item),
+                    leading = { IconTile(iconFor(item.type)) },
+                    onClick = { vm.go(Screen.Detail(item.id)) },
+                ) {
+                    if (item.favorite) Icon(Icons.Filled.Star, null, tint = c.star, modifier = Modifier.size(17.dp))
+                    Icon(Icons.Filled.ChevronRight, null, tint = c.text3, modifier = Modifier.size(22.dp))
+                }
+                if (!last) GroupDivider(inset = 68.dp)
+            }
+        }
     }
 }
 
@@ -415,157 +441,201 @@ private fun copySensitive(context: Context, label: String, value: String) {
     }, 30_000)
 }
 
+private class FieldSpec(val label: String, val value: String, val secret: Boolean = false, val mono: Boolean = false, val multiline: Boolean = false)
+
 @Composable
-private fun DetailScreen(vm: VaultViewModel, id: String) = Page(onBack = { vm.go(Screen.Vault) }) {
-    val item = remember(vm.revision, id) { vm.item(id) } ?: return@Page
+private fun DetailScreen(vm: VaultViewModel, id: String) {
+    val item = remember(vm.revision, id) { vm.item(id) }
+    val back = stringResource(R.string.back)
+    BackHandler { vm.go(Screen.Vault) }
+    if (item == null) {
+        LaunchedEffect(Unit) { vm.go(Screen.Vault) }
+        return
+    }
+    val c = LocalGlassColors.current
     val context = LocalContext.current
+    val host = LocalOverlayHost.current
     val copied = stringResource(R.string.detail_copied)
     var unlockedTick by remember { mutableStateOf(0) }
     val locked = item.reprompt && id !in vm.revealed && unlockedTick >= 0
+    var askPassword by remember { mutableStateOf(false) }
     var pw by rememberSaveable { mutableStateOf("") }
 
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(52.dp).clip(RoundedCornerShape(16.dp)).background(Accent.copy(alpha = 0.18f)), contentAlignment = Alignment.Center) {
-            Icon(iconFor(item.type), null, tint = Accent, modifier = Modifier.size(28.dp))
+    val fields = buildList {
+        fun add(label: Int, value: String?, secret: Boolean = false, mono: Boolean = false, multiline: Boolean = false) {
+            if (!value.isNullOrBlank()) add(FieldSpec(context.getString(label), value, secret, mono, multiline))
         }
-        Spacer(Modifier.width(14.dp))
-        Text(item.title.ifBlank { stringResource(R.string.untitled) }, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        add(R.string.field_username, item.username)
+        add(R.string.field_email, item.email)
+        add(R.string.field_password, item.password, secret = true)
+        add(R.string.field_url, item.url)
+        add(R.string.field_ssid, item.ssid)
+        add(R.string.field_wifi_security, item.wifiSecurity)
+        add(R.string.field_product, item.product)
+        add(R.string.field_license_key, item.licenseKey, secret = true)
+        add(R.string.field_licensee, item.licensee)
+        add(R.string.field_version, item.version)
+        add(R.string.field_purchase_date, item.purchaseDate)
+        add(R.string.field_service, item.service)
+        add(R.string.field_codes, item.codes, secret = true, mono = true, multiline = true)
+        add(R.string.field_recovery_email, item.recoveryEmail)
+        add(R.string.field_recovery_info, item.recoveryInfo, secret = true)
+        for (f in item.customFields) if (f.value.isNotBlank()) add(FieldSpec(f.label, f.value, secret = f.hidden))
+    }
+    val notes = buildList {
+        if (!item.notes.isNullOrBlank()) add(FieldSpec(context.getString(R.string.field_notes), item.notes!!, multiline = true))
+        if (!item.importantNotes.isNullOrBlank()) add(FieldSpec(context.getString(R.string.field_important_notes), item.importantNotes!!, multiline = true))
+        if (item.tags.isNotEmpty()) add(FieldSpec(context.getString(R.string.field_tags), item.tags.joinToString(", ")))
+    }
+    val onCopy = { f: FieldSpec ->
+        copySensitive(context, f.label, f.value)
+        host.toast(copied)
     }
 
-    if (locked) {
-        GlassCard {
-            Text(stringResource(R.string.detail_reprompt_title), color = Color.White, fontWeight = FontWeight.SemiBold)
-            Body(stringResource(R.string.detail_reprompt_body), Modifier.padding(vertical = 8.dp))
-            GlassField(pw, { pw = it }, stringResource(R.string.master_password), secret = true)
-            ErrorText(vm.error)
+    GlassScaffold(topBar = { GlassIconButton(Icons.AutoMirrored.Filled.ArrowBack, back, { vm.go(Screen.Vault) }, Modifier.align(Alignment.CenterStart)) }) { pad ->
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(pad), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp)) {
+                IconTile(iconFor(item.type), size = 58.dp)
+                Spacer(Modifier.width(16.dp))
+                Text(item.title.ifBlank { stringResource(R.string.untitled) }, style = Type.title, color = c.text)
+            }
+            if (locked) {
+                InsetGroup {
+                    ListRow(
+                        stringResource(R.string.detail_reprompt_title),
+                        subtitle = stringResource(R.string.detail_reprompt_body),
+                        leading = { IconTile(Icons.Filled.Lock) },
+                    )
+                }
+                GlassButton(stringResource(R.string.detail_unlock), { askPassword = true }, Modifier.fillMaxWidth(), icon = Icons.Filled.Lock)
+            }
+            if (fields.isNotEmpty()) InsetGroup { fields.forEachIndexed { i, f -> FieldRow(f, locked && f.secret, onCopy); if (i != fields.lastIndex) GroupDivider() } }
+            if (notes.isNotEmpty()) InsetGroup { notes.forEachIndexed { i, f -> FieldRow(f, false, onCopy); if (i != notes.lastIndex) GroupDivider() } }
         }
-        GlassButton(stringResource(R.string.detail_unlock), { vm.reprompt(id, pw) { unlockedTick++ }; pw = "" }, Modifier.fillMaxWidth(), enabled = pw.isNotEmpty())
     }
 
-    val onCopy = { label: String, value: String ->
-        copySensitive(context, label, value)
-        Toast.makeText(context, copied, Toast.LENGTH_SHORT).show()
-    }
-    GlassCard(Modifier.fillMaxWidth()) {
-        Field(stringResource(R.string.field_username), item.username, onCopy = onCopy)
-        Field(stringResource(R.string.field_email), item.email, onCopy = onCopy)
-        Field(stringResource(R.string.field_password), item.password, secret = true, locked = locked, onCopy = onCopy)
-        Field(stringResource(R.string.field_url), item.url, onCopy = onCopy)
-        Field(stringResource(R.string.field_ssid), item.ssid, onCopy = onCopy)
-        Field(stringResource(R.string.field_wifi_security), item.wifiSecurity, onCopy = onCopy)
-        Field(stringResource(R.string.field_product), item.product, onCopy = onCopy)
-        Field(stringResource(R.string.field_license_key), item.licenseKey, secret = true, locked = locked, onCopy = onCopy)
-        Field(stringResource(R.string.field_licensee), item.licensee, onCopy = onCopy)
-        Field(stringResource(R.string.field_version), item.version, onCopy = onCopy)
-        Field(stringResource(R.string.field_purchase_date), item.purchaseDate, onCopy = onCopy)
-        Field(stringResource(R.string.field_service), item.service, onCopy = onCopy)
-        Field(stringResource(R.string.field_codes), item.codes, secret = true, locked = locked, onCopy = onCopy, mono = true)
-        Field(stringResource(R.string.field_recovery_email), item.recoveryEmail, onCopy = onCopy)
-        Field(stringResource(R.string.field_recovery_info), item.recoveryInfo, onCopy = onCopy)
-        for (f in item.customFields) Field(f.label, f.value, secret = f.hidden, locked = locked && f.hidden, onCopy = onCopy)
-        Field(stringResource(R.string.field_notes), item.notes, onCopy = onCopy, multiline = true)
-        Field(stringResource(R.string.field_important_notes), item.importantNotes, onCopy = onCopy, multiline = true)
-        if (item.tags.isNotEmpty()) Field(stringResource(R.string.field_tags), item.tags.joinToString(", "), onCopy = onCopy)
+    GlassSheet(visible = askPassword, onDismiss = { askPassword = false; pw = ""; vm.clearError() }) {
+        fun submit() {
+            if (pw.isNotEmpty()) {
+                vm.reprompt(id, pw) { unlockedTick++; askPassword = false }
+                pw = ""
+            }
+        }
+        Text(stringResource(R.string.detail_reprompt_title), style = Type.headline, color = c.text)
+        Body(stringResource(R.string.detail_reprompt_body))
+        GlassTextField(pw, { pw = it }, stringResource(R.string.master_password), secret = true, onDone = ::submit)
+        ErrorText(vm.error)
+        GlassButton(stringResource(R.string.detail_unlock), ::submit, Modifier.fillMaxWidth(), enabled = pw.isNotEmpty())
     }
 }
 
 @Composable
-private fun Field(
-    label: String,
-    value: String?,
-    secret: Boolean = false,
-    locked: Boolean = false,
-    mono: Boolean = false,
-    multiline: Boolean = false,
-    onCopy: (String, String) -> Unit,
-) {
-    if (value.isNullOrBlank()) return
+private fun FieldRow(f: FieldSpec, locked: Boolean, onCopy: (FieldSpec) -> Unit) {
+    val c = LocalGlassColors.current
     var shown by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-        Text(label, color = Color.White.copy(alpha = 0.55f), fontSize = 12.sp)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            val text = when {
-                secret && (locked || !shown) -> "••••••••••"
-                else -> value
-            }
+    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 6.dp, top = 10.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(f.label, style = Type.footnote, color = c.text3)
             Text(
-                text,
-                color = Color.White,
-                fontSize = 16.sp,
-                fontFamily = if (secret || mono) FontFamily.Monospace else FontFamily.Default,
-                maxLines = if (multiline || mono) Int.MAX_VALUE else 2,
+                if (f.secret && (locked || !shown)) "••••••••••" else f.value,
+                style = Type.body.copy(fontFamily = if (f.secret || f.mono) FontFamily.Monospace else FontFamily.Default),
+                color = c.text,
+                maxLines = if (f.multiline) Int.MAX_VALUE else 2,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
             )
-            if (!locked) {
-                if (secret) TextButton(onClick = { shown = !shown }) { Text(stringResource(if (shown) R.string.detail_hide else R.string.detail_reveal), color = Accent) }
-                TextButton(onClick = { onCopy(label, value) }) { Text(stringResource(R.string.detail_copy), color = Accent) }
+        }
+        if (!locked) {
+            if (f.secret) {
+                RowIconButton(
+                    if (shown) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                    stringResource(if (shown) R.string.detail_hide else R.string.detail_reveal) + " " + f.label,
+                    { shown = !shown },
+                )
             }
+            RowIconButton(Icons.Filled.ContentCopy, stringResource(R.string.detail_copy) + " " + f.label, { onCopy(f) })
+        } else {
+            Icon(Icons.Filled.Lock, null, tint = c.text3, modifier = Modifier.padding(end = 12.dp).size(18.dp))
         }
     }
 }
 
-// ------------------------------------------------------------------ settings
+// ------------------------------------------------------------------ settings tab
 
 @Composable
-private fun SettingsScreen(vm: VaultViewModel) = Page(onBack = { vm.go(Screen.Vault) }) {
+private fun SettingsTab(vm: VaultViewModel, pad: PaddingValues) {
+    val c = LocalGlassColors.current
     val activity = LocalContext.current as FragmentActivity
     val rev = vm.revision
     val bio = remember(rev) { vm.biometricEnabled() }
     val trustedUntil = remember(rev) { vm.deviceTrustedUntil() }
     var pw by rememberSaveable { mutableStateOf("") }
+    var askBio by remember { mutableStateOf(false) }
     var askWipe by remember { mutableStateOf(false) }
     val promptTitle = stringResource(R.string.settings_biometric_prompt)
     val cancel = stringResource(R.string.cancel)
     val canBio = remember { BiometricManager.from(activity).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS }
 
-    Title(stringResource(R.string.settings_title))
-    GlassCard(Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.Fingerprint, null, tint = Accent)
-            Spacer(Modifier.width(10.dp))
-            Text(stringResource(R.string.settings_biometric), color = Color.White, fontWeight = FontWeight.SemiBold)
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(pad), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        LargeTitle(stringResource(R.string.settings_title), Modifier.padding(start = 6.dp, bottom = 6.dp))
+
+        SectionHeader(stringResource(R.string.settings_biometric))
+        InsetGroup {
+            ListRow(
+                stringResource(R.string.settings_biometric),
+                subtitle = if (bio) stringResource(R.string.settings_biometric_on) else null,
+                leading = { IconTile(Icons.Filled.Fingerprint) },
+                onClick = if (bio || canBio) ({ if (bio) vm.disableBiometric() else askBio = true }) else null,
+            ) { com.damfizz.myvault.ui.glass.GlassToggle(bio, { on -> if (on) askBio = true else vm.disableBiometric() }) }
         }
-        Body(stringResource(R.string.settings_biometric_body), Modifier.padding(vertical = 8.dp))
-        if (bio) {
-            Body(stringResource(R.string.settings_biometric_on))
-            Spacer(Modifier.height(8.dp))
-            GlassButton(stringResource(R.string.settings_biometric_disable), vm::disableBiometric, Modifier.fillMaxWidth(), primary = false)
-        } else if (canBio) {
-            GlassField(pw, { pw = it }, stringResource(R.string.master_password), secret = true)
-            Spacer(Modifier.height(8.dp))
-            GlassButton(stringResource(R.string.settings_biometric_enable), {
-                val password = pw
-                runCatching { com.damfizz.myvault.security.BiometricKey.encryptCipher() }.onSuccess { c ->
-                    showBiometricPrompt(activity, promptTitle, cancel, c) { vm.enableBiometric(it, password) }
-                }
-                pw = ""
-            }, Modifier.fillMaxWidth(), enabled = pw.isNotEmpty())
+        Footnote(stringResource(R.string.settings_biometric_body), Modifier.padding(horizontal = 16.dp))
+
+        SectionHeader(stringResource(R.string.settings_security))
+        InsetGroup {
+            ListRow(stringResource(if (vm.hasSecretKeyMode()) R.string.settings_secret_key_on else R.string.settings_secret_key_off), leading = { IconTile(Icons.Filled.Key) })
+            GroupDivider(68.dp)
+            ListRow(stringResource(if (vm.hasRecoveryKey()) R.string.settings_recovery_yes else R.string.settings_recovery_no), leading = { IconTile(Icons.Filled.VpnKey) })
+            if (trustedUntil != null) {
+                GroupDivider(68.dp)
+                ListRow(
+                    stringResource(R.string.settings_trust, DateFormat.getDateInstance().format(Date(trustedUntil))),
+                    subtitle = stringResource(R.string.settings_trust_forget),
+                    leading = { IconTile(Icons.Filled.Shield) },
+                    onClick = vm::forgetTrust,
+                )
+            }
         }
-        ErrorText(vm.error)
-    }
-    GlassCard(Modifier.fillMaxWidth()) {
-        Text(stringResource(R.string.settings_security), color = Color.White, fontWeight = FontWeight.SemiBold)
+        vm.lastKdfMillis?.let { Footnote(stringResource(R.string.settings_kdf, it.toInt()), Modifier.padding(horizontal = 16.dp)) }
+        Footnote(stringResource(R.string.settings_autolock), Modifier.padding(horizontal = 16.dp))
+        Footnote(stringResource(R.string.settings_readonly), Modifier.padding(horizontal = 16.dp))
+
         Spacer(Modifier.height(6.dp))
-        Body(stringResource(if (vm.hasSecretKeyMode()) R.string.settings_secret_key_on else R.string.settings_secret_key_off))
-        Body(stringResource(if (vm.hasRecoveryKey()) R.string.settings_recovery_yes else R.string.settings_recovery_no))
-        if (trustedUntil != null) {
-            Body(stringResource(R.string.settings_trust, DateFormat.getDateInstance().format(Date(trustedUntil))))
-            TextButton(onClick = vm::forgetTrust) { Text(stringResource(R.string.settings_trust_forget), color = Accent) }
+        InsetGroup { ListRow(stringResource(R.string.settings_wipe), titleColor = c.danger, onClick = { askWipe = true }) }
+        Footnote(stringResource(R.string.settings_version, BuildConfigCompat.versionName(activity)), Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+    }
+
+    GlassSheet(visible = askBio, onDismiss = { askBio = false; pw = ""; vm.clearError() }) {
+        fun submit() {
+            if (pw.isEmpty()) return
+            val password = pw
+            pw = ""
+            askBio = false
+            runCatching { BiometricKey.encryptCipher() }.onSuccess { cipher ->
+                showBiometricPrompt(activity, promptTitle, cancel, cipher) { vm.enableBiometric(it, password) }
+            }
         }
-        vm.lastKdfMillis?.let { Body(stringResource(R.string.settings_kdf, it.toInt())) }
-        Body(stringResource(R.string.settings_autolock))
+        Text(stringResource(R.string.settings_biometric), style = Type.headline, color = c.text)
+        Body(stringResource(R.string.settings_biometric_body))
+        GlassTextField(pw, { pw = it }, stringResource(R.string.master_password), secret = true, onDone = ::submit)
+        GlassButton(stringResource(R.string.settings_biometric_enable), ::submit, Modifier.fillMaxWidth(), enabled = pw.isNotEmpty(), icon = Icons.Filled.Fingerprint)
     }
-    GlassCard(Modifier.fillMaxWidth()) { Body(stringResource(R.string.settings_readonly)) }
-    GlassButton(stringResource(R.string.settings_wipe), { askWipe = true }, Modifier.fillMaxWidth(), primary = false)
-    Body(stringResource(R.string.settings_version, BuildConfigCompat.versionName(activity)))
-    if (askWipe) {
-        AlertDialog(
-            onDismissRequest = { askWipe = false },
-            title = { Text(stringResource(R.string.settings_wipe)) },
-            text = { Text(stringResource(R.string.settings_wipe_confirm)) },
-            confirmButton = { TextButton(onClick = { askWipe = false; vm.wipeDevice() }) { Text(stringResource(R.string.settings_wipe_yes), color = Color(0xFFFF8A80)) } },
-            dismissButton = { TextButton(onClick = { askWipe = false }) { Text(stringResource(R.string.cancel)) } },
-        )
-    }
+    GlassAlert(
+        visible = askWipe,
+        title = stringResource(R.string.settings_wipe),
+        message = stringResource(R.string.settings_wipe_confirm),
+        confirm = stringResource(R.string.settings_wipe_yes),
+        onConfirm = { askWipe = false; vm.wipeDevice() },
+        dismiss = stringResource(R.string.cancel),
+        onDismiss = { askWipe = false },
+        destructive = true,
+    )
 }
