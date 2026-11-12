@@ -11,7 +11,9 @@
 param(
     [string]$Repo = "DamFizz/MyVaultAndroid",
     [string]$Version = "0.2.1-alpha",
-    [switch]$Public
+    [switch]$Public,
+    # optional "what is new" text placed at the top of the release notes
+    [string]$Changes = ""
 )
 # Exit codes are checked explicitly; "Stop" would turn harmless gh stderr output into fatal errors on PowerShell 5.1.
 $ErrorActionPreference = "Continue"
@@ -37,6 +39,8 @@ if ($LASTEXITCODE -ne 0) { throw "git push failed" }
 
 $notes = @"
 MyVault for Android $Version (alpha).
+
+$Changes
 
 - Liquid Glass UI; nearly every feature of the web app (see docs/PARITY.md).
 - Fingerprint / face unlock (Android Keystore, strong biometrics only), offered after the first unlock.

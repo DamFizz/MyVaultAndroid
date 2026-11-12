@@ -6,6 +6,7 @@ import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.fragment.app.FragmentActivity
 import com.damfizz.myvault.ui.AppRoot
 import com.damfizz.myvault.ui.glass.GlassTheme
@@ -27,7 +28,13 @@ class MainActivity : FragmentActivity() {
                 "light" -> false
                 else -> androidx.compose.foundation.isSystemInDarkTheme()
             }
-            GlassTheme(dark = dark, accent = vm.prefs.accent) { AppRoot(vm) }
+            val wallpaper = vm.prefs.wallpaper
+            val version = vm.prefs.wallpaperVersion
+            val photo = androidx.compose.runtime.remember(wallpaper, version) {
+                if (wallpaper != "photo") null
+                else runCatching { android.graphics.BitmapFactory.decodeFile(vm.wallpaperFile().path)?.asImageBitmap() }.getOrNull()
+            }
+            GlassTheme(dark = dark, accent = vm.prefs.accent, wallpaper = wallpaper, wallpaperImage = photo) { AppRoot(vm) }
         }
     }
 

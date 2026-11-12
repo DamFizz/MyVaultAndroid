@@ -118,16 +118,54 @@ val Accents: Map<String, Pair<Color, Color>> = linkedMapOf(
     "amber" to (Color(0xFFD97706) to Color(0xFFFBBF24)),
 )
 
+/** Background presets: base colour + soft light blobs, for dark and light mode. */
+class WallpaperStyle(val darkBase: Color, val darkBlobs: List<Color>, val lightBase: Color, val lightBlobs: List<Color>)
+
+val Wallpapers: Map<String, WallpaperStyle> = linkedMapOf(
+    "midnight" to WallpaperStyle(
+        Color(0xFF05070F), listOf(Color(0x403B4BDB), Color(0x261E3A8A), Color(0x1F6D28D9), Color(0x1A0EA5E9)),
+        Color(0xFFEEF1F7), listOf(Color(0x4D93A5FF), Color(0x3399C5F0), Color(0x26C4B5FD), Color(0x26BFDBFE)),
+    ),
+    "graphite" to WallpaperStyle(
+        Color(0xFF0C0D10), listOf(Color(0x33464B55), Color(0x26303440), Color(0x1F3A3F4A), Color(0x14FFFFFF)),
+        Color(0xFFF1F2F4), listOf(Color(0x55CDD1D8), Color(0x40DDE0E5), Color(0x33C3C7CF), Color(0x26FFFFFF)),
+    ),
+    "ocean" to WallpaperStyle(
+        Color(0xFF031017), listOf(Color(0x5506B6D4), Color(0x4D0EA5E9), Color(0x40155E75), Color(0x3322D3EE)),
+        Color(0xFFEAF6FA), listOf(Color(0x6667E8F9), Color(0x597DD3FC), Color(0x40A5F3FC), Color(0x3393C5FD)),
+    ),
+    "sunset" to WallpaperStyle(
+        Color(0xFF120812), listOf(Color(0x5CF97316), Color(0x55EC4899), Color(0x4D7C3AED), Color(0x33F59E0B)),
+        Color(0xFFFFF4EE), listOf(Color(0x66FDBA74), Color(0x5CF9A8D4), Color(0x4DC4B5FD), Color(0x40FDE68A)),
+    ),
+    "aurora" to WallpaperStyle(Color(0xFF070A16), DarkGlass.blobs, Color(0xFFEDF0F8), LightGlass.blobs),
+    "plain" to WallpaperStyle(Color(0xFF0A0B10), emptyList(), Color(0xFFF2F3F6), emptyList()),
+)
+
+/** A user-chosen background photo, or null. */
+val LocalWallpaperImage = staticCompositionLocalOf<androidx.compose.ui.graphics.ImageBitmap?> { null }
+
 @Composable
-fun GlassTheme(dark: Boolean = isSystemInDarkTheme(), accent: String = "blue", content: @Composable () -> Unit) {
+fun GlassTheme(
+    dark: Boolean = isSystemInDarkTheme(),
+    accent: String = "blue",
+    wallpaper: String = "midnight",
+    wallpaperImage: androidx.compose.ui.graphics.ImageBitmap? = null,
+    content: @Composable () -> Unit,
+) {
     val pair = Accents[accent] ?: Accents.getValue("blue")
-    val colors = (if (dark) DarkGlass else LightGlass).copy(accent = if (dark) pair.second else pair.first)
+    val style = Wallpapers[wallpaper] ?: Wallpapers.getValue("midnight")
+    val colors = (if (dark) DarkGlass else LightGlass).copy(
+        accent = if (dark) pair.second else pair.first,
+        base = if (dark) style.darkBase else style.lightBase,
+        blobs = if (dark) style.darkBlobs else style.lightBlobs,
+    )
     val scheme = if (dark) {
         darkColorScheme(primary = colors.accent, background = colors.base, surface = colors.base, onSurface = colors.text, onBackground = colors.text)
     } else {
         lightColorScheme(primary = colors.accent, background = colors.base, surface = colors.base, onSurface = colors.text, onBackground = colors.text)
     }
-    CompositionLocalProvider(LocalGlassColors provides colors) {
+    CompositionLocalProvider(LocalGlassColors provides colors, LocalWallpaperImage provides if (wallpaper == "photo") wallpaperImage else null) {
         MaterialTheme(colorScheme = scheme, content = content)
     }
 }
@@ -144,6 +182,19 @@ fun Wallpaper(modifier: Modifier = Modifier, animated: Boolean = false) {
     } else {
         remember { mutableFloatStateOf(0.35f) }
     }
+    val photo = LocalWallpaperImage.current
+    if (photo != null) {
+        // A user photo, dimmed slightly so text on glass stays readable.
+        Box(modifier.background(c.base)) {
+            androidx.compose.foundation.Image(
+                photo, null,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.matchParentSize(),
+            )
+            Box(Modifier.matchParentSize().background(if (c.dark) Color(0x59000000) else Color(0x33FFFFFF)))
+        }
+        return
+    }
     Box(
         modifier
             .background(c.base)
@@ -151,12 +202,17 @@ fun Wallpaper(modifier: Modifier = Modifier, animated: Boolean = false) {
                 val w = size.width
                 val h = size.height
                 val p = phase.value
+                // gentle vertical depth so even "plain" is not completely flat
+                drawRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = if (c.dark) 0.025f else 0.35f), Color.Transparent)))
                 fun blob(cx: Float, cy: Float, r: Float, color: Color) =
                     drawCircle(Brush.radialGradient(listOf(color, Color.Transparent), Offset(cx, cy), r), r, Offset(cx, cy))
-                blob(w * (0.12f + 0.22f * p), h * (0.14f + 0.04f * p), w * 0.85f, c.blobs[0])
-                blob(w * (0.98f - 0.26f * p), h * (0.42f + 0.1f * p), w * 0.75f, c.blobs[1])
-                blob(w * (0.25f + 0.32f * p), h * (0.96f - 0.06f * p), w * 0.9f, c.blobs[2])
-                blob(w * (0.8f - 0.1f * p), h * 0.02f, w * 0.55f, c.blobs[3])
+                val b = c.blobs
+                if (b.size >= 4) {
+                    blob(w * (0.12f + 0.22f * p), h * (0.14f + 0.04f * p), w * 0.85f, b[0])
+                    blob(w * (0.98f - 0.26f * p), h * (0.42f + 0.1f * p), w * 0.75f, b[1])
+                    blob(w * (0.25f + 0.32f * p), h * (0.96f - 0.06f * p), w * 0.9f, b[2])
+                    blob(w * (0.8f - 0.1f * p), h * 0.02f, w * 0.55f, b[3])
+                }
             },
     )
 }

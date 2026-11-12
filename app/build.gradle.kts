@@ -21,8 +21,8 @@ android {
         applicationId = "com.damfizz.myvault"
         minSdk = 26
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.2.1-alpha"
+        versionCode = 4
+        versionName = "0.2.2-alpha"
     }
 
     signingConfigs {

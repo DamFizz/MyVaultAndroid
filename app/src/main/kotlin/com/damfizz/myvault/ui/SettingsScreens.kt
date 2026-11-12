@@ -202,6 +202,8 @@ internal fun SettingsTab(vm: VaultViewModel, pad: PaddingValues) {
             val themeLabel = stringResource(when (prefs.theme) { "dark" -> R.string.set_theme_dark; "light" -> R.string.set_theme_light; else -> R.string.set_theme_system })
             ValueRow(stringResource(R.string.set_theme), themeLabel, Icons.Filled.DarkMode) { sheet = "theme" }
             GroupDivider(64.dp)
+            ValueRow(stringResource(R.string.set_background), stringResource(wallpaperLabel(prefs.wallpaper)), Icons.Filled.Wallpaper) { sheet = "wallpaper" }
+            GroupDivider(64.dp)
             Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(stringResource(R.string.set_accent), style = Type.body, color = c.text)
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -433,6 +435,42 @@ internal fun SettingsTab(vm: VaultViewModel, pad: PaddingValues) {
         GlassButton(stringResource(R.string.action_done), { vm.reveal = null }, Modifier.fillMaxWidth(), enabled = ack)
     }
 
+    // ---- background
+    val photoPicker = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) { vm.setWallpaperPhoto(uri); close() }
+    }
+    GlassSheet(sheet == "wallpaper", ::close) {
+        Text(stringResource(R.string.set_background), style = Type.headline, color = c.text)
+        InsetGroup {
+            val ids = Wallpapers.keys.toList()
+            ids.forEachIndexed { i, id ->
+                val st = Wallpapers.getValue(id)
+                ListRow(
+                    stringResource(wallpaperLabel(id)),
+                    leading = {
+                        Box(
+                            Modifier.size(34.dp).clip(RoundedCornerShape(10.dp))
+                                .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(if (c.dark) st.darkBase else st.lightBase) + (if (c.dark) st.darkBlobs else st.lightBlobs).map { it.copy(alpha = 1f) }.take(2).ifEmpty { listOf(if (c.dark) st.darkBase else st.lightBase) }))
+                                .border(1.dp, c.separator, RoundedCornerShape(10.dp)),
+                        )
+                    },
+                    onClick = { prefs.updateWallpaper(id); close() },
+                ) { CheckMark(prefs.wallpaper == id) }
+                if (i != ids.lastIndex) GroupDivider(64.dp)
+            }
+            if (vm.wallpaperFile().exists()) {
+                GroupDivider(64.dp)
+                ListRow(stringResource(R.string.bg_photo), leading = { IconTile(Icons.Filled.Image, 34.dp) }, onClick = { prefs.updateWallpaper("photo"); close() }) { CheckMark(prefs.wallpaper == "photo") }
+            }
+        }
+        GlassButton(
+            stringResource(R.string.bg_choose_photo),
+            { photoPicker.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+            Modifier.fillMaxWidth(), prominent = false, icon = Icons.Filled.AddPhotoAlternate,
+        )
+        Footnote(stringResource(R.string.bg_photo_note))
+    }
+
     // ---- app update
     GlassSheet(sheet == "update", onDismiss = { vm.clearUpdateStatus(); close() }) {
         UpdateSheetBody(vm)
@@ -508,8 +546,6 @@ internal fun OrganizeScreen(vm: VaultViewModel) {
     val items = remember(rev) { vm.items() }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var editing by remember { mutableStateOf<VaultCollection?>(null) }
-    var deleting by remember { mutableStateOf<VaultCollection?>(null) }
-    var moveTo by remember { mutableStateOf<String?>(null) }
     val kind = if (tab == 0) "category" else "section"
     BackHandler { vm.tab = 3; vm.go(Screen.Vault) }
 
@@ -562,15 +598,30 @@ internal fun OrganizeScreen(vm: VaultViewModel) {
         }
     }
 
+    CollectionEditor(vm, editing) { editing = it }
+}
+
+/**
+ * Create / edit a category or folder, and delete it (items are never deleted, only moved).
+ * Shared by the Organize screen and the Vault tab's category tiles.
+ */
+@Composable
+internal fun CollectionEditor(vm: VaultViewModel, editing: VaultCollection?, onEditingChange: (VaultCollection?) -> Unit) {
+    val c = LocalGlassColors.current
+    val rev = vm.revision
+    val all = remember(rev) { vm.collections() }
+    val items = remember(rev) { vm.items() }
+    var deleting by remember { mutableStateOf<VaultCollection?>(null) }
+    var moveTo by remember { mutableStateOf<String?>(null) }
     // ---- editor sheet
     val e = editing
-    GlassSheet(e != null, onDismiss = { editing = null }) {
+    GlassSheet(e != null, onDismiss = { onEditingChange(null) }) {
         if (e == null) return@GlassSheet
         val isNew = all.none { it.id == e.id }
         val duplicate = Collections.isDuplicate(e, all)
         Text(stringResource(if (!isNew) R.string.org_edit else if (e.kind == "category") R.string.org_new_category else R.string.org_new_folder), style = Type.headline, color = c.text)
         SheetList {
-            GlassTextField(e.name, { editing = e.copy(name = it.take(60)) }, stringResource(R.string.org_name), leading = collectionIcon(e.icon))
+            GlassTextField(e.name, { onEditingChange(e.copy(name = it.take(60))) }, stringResource(R.string.org_name), leading = collectionIcon(e.icon))
             if (duplicate) Footnote(stringResource(R.string.org_duplicate), Modifier.padding(start = 14.dp), color = c.danger)
             if (e.kind == "section") {
                 val parents = Collections.validParents(e, all)
@@ -579,10 +630,10 @@ internal fun OrganizeScreen(vm: VaultViewModel) {
                     ValueRow(stringResource(R.string.org_parent), parents.find { it.id == e.parentId }?.name ?: stringResource(R.string.org_top_level)) { pickParent = !pickParent }
                     if (pickParent) {
                         GroupDivider()
-                        ListRow(stringResource(R.string.org_top_level), onClick = { editing = e.copy(parentId = null); pickParent = false }) { CheckMark(e.parentId == null) }
+                        ListRow(stringResource(R.string.org_top_level), onClick = { onEditingChange(e.copy(parentId = null)); pickParent = false }) { CheckMark(e.parentId == null) }
                         for (p in parents) {
                             GroupDivider()
-                            ListRow(p.name, onClick = { editing = e.copy(parentId = p.id); pickParent = false }) { CheckMark(e.parentId == p.id) }
+                            ListRow(p.name, onClick = { onEditingChange(e.copy(parentId = p.id)); pickParent = false }) { CheckMark(e.parentId == p.id) }
                         }
                     }
                 }
@@ -590,19 +641,19 @@ internal fun OrganizeScreen(vm: VaultViewModel) {
             Footnote(stringResource(R.string.org_color), Modifier.padding(start = 14.dp))
             FlowGrid(Collections.COLORS.size, 8) { i ->
                 val hex = Collections.COLORS[i]
-                Box(Modifier.size(32.dp).clip(CircleShape).background(parseColor(hex)).then(if (e.color == hex) Modifier.border(3.dp, c.text, CircleShape) else Modifier).clickable { editing = e.copy(color = hex) })
+                Box(Modifier.size(32.dp).clip(CircleShape).background(parseColor(hex)).then(if (e.color == hex) Modifier.border(3.dp, c.text, CircleShape) else Modifier).clickable { onEditingChange(e.copy(color = hex)) })
             }
             Footnote(stringResource(R.string.org_icon), Modifier.padding(start = 14.dp))
             FlowGrid(Collections.ICONS.size, 7) { i ->
                 val name = Collections.ICONS[i]
                 Box(
-                    Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(if (e.icon == name) c.accent.copy(alpha = 0.25f) else c.field).clickable { editing = e.copy(icon = name) },
+                    Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(if (e.icon == name) c.accent.copy(alpha = 0.25f) else c.field).clickable { onEditingChange(e.copy(icon = name)) },
                     contentAlignment = Alignment.Center,
                 ) { Icon(collectionIcon(name), null, tint = if (e.icon == name) c.accent else c.text2, modifier = Modifier.size(22.dp)) }
             }
-            InsetGroup { ToggleRow(stringResource(R.string.org_pin), e.pinned, { editing = e.copy(pinned = it) }) }
-            GlassButton(stringResource(R.string.action_save), { vm.saveCollection(e); editing = null }, Modifier.fillMaxWidth(), enabled = e.name.isNotBlank() && !duplicate)
-            if (!isNew) GlassButton(stringResource(R.string.org_delete), { editing = null; moveTo = null; deleting = e }, Modifier.fillMaxWidth(), prominent = false, destructive = true)
+            InsetGroup { ToggleRow(stringResource(R.string.org_pin), e.pinned, { onEditingChange(e.copy(pinned = it)) }) }
+            GlassButton(stringResource(R.string.action_save), { vm.saveCollection(e); onEditingChange(null) }, Modifier.fillMaxWidth(), enabled = e.name.isNotBlank() && !duplicate)
+            if (!isNew) GlassButton(stringResource(R.string.org_delete), { onEditingChange(null); moveTo = null; deleting = e }, Modifier.fillMaxWidth(), prominent = false, destructive = true)
         }
     }
 
@@ -676,4 +727,14 @@ internal fun ColumnScope.UpdateSheetBody(vm: VaultViewModel) {
             }
         }
     }
+}
+
+internal fun wallpaperLabel(id: String): Int = when (id) {
+    "graphite" -> R.string.bg_graphite
+    "ocean" -> R.string.bg_ocean
+    "sunset" -> R.string.bg_sunset
+    "aurora" -> R.string.bg_aurora
+    "plain" -> R.string.bg_plain
+    "photo" -> R.string.bg_photo
+    else -> R.string.bg_midnight
 }

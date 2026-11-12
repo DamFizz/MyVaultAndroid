@@ -226,6 +226,7 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
     private fun opened(s: VaultSession) {
         runCatching { Items.purgeExpiredTrash(s, System.currentTimeMillis()) }
         filter = ItemFilter.All
+        vaultHome = true
         session = s
         needsSecretKey = false
         revealed.clear()
@@ -395,6 +396,19 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
     class Notice(val message: String, val undo: (() -> Unit)? = null)
 
     var filter by mutableStateOf<ItemFilter>(ItemFilter.All)
+    /** Vault tab shows category tiles (true) or a list of items for [filter] (false). */
+    var vaultHome by mutableStateOf(true)
+
+    fun openList(f: ItemFilter) {
+        filter = f
+        vaultHome = false
+    }
+
+    fun backToHome() {
+        filter = ItemFilter.All
+        vaultHome = true
+        selection = emptySet()
+    }
     var sortBy: SortBy
         get() = prefs.sortBy
         set(value) = prefs.updateSortBy(value)
@@ -888,6 +902,34 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
         notice = Notice(str(R.string.lock_downloaded)); noticeId++
     }
 
+    // ------------------------------------------------------------------ background photo
+
+    fun wallpaperFile() = File(getApplication<Application>().filesDir, "wallpaper.jpg")
+
+    /** Copy the chosen photo into private storage, downscaled to about the screen size. */
+    fun setWallpaperPhoto(uri: android.net.Uri) {
+        val ctx = getApplication<Application>()
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                runCatching {
+                    val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    ctx.contentResolver.openInputStream(uri)!!.use { android.graphics.BitmapFactory.decodeStream(it, null, bounds) }
+                    var sample = 1
+                    while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= 1800) sample *= 2
+                    val bmp = ctx.contentResolver.openInputStream(uri)!!.use {
+                        android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample })
+                    }!!
+                    wallpaperFile().outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 88, it) }
+                    bmp.recycle()
+                }.isSuccess
+            }
+            if (ok) {
+                prefs.bumpWallpaperVersion()
+                prefs.updateWallpaper("photo")
+            }
+        }
+    }
+
     // ------------------------------------------------------------------ organize
 
     fun saveCollection(c: VaultCollection) {
@@ -905,7 +947,7 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
     fun deleteCollection(id: String, moveTo: String?) {
         val s = session ?: return
         s.deleteCollection(id, moveTo)
-        if (filter == ItemFilter.Category(id) || filter == ItemFilter.Section(id)) filter = ItemFilter.All
+        if (filter == ItemFilter.Category(id) || filter == ItemFilter.Section(id)) backToHome()
         revision++
     }
 

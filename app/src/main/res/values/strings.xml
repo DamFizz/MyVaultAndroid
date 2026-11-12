@@ -477,4 +477,17 @@
     <string name="gs_package">Package name</string>
     <string name="gs_sha1">SHA-1 certificate fingerprint</string>
     <string name="clipboard_copied_plain">Copied</string>
+    <string name="vault_all_items">All items</string>
+    <string name="vault_home_hint">Tap a category to open it. Press and hold to edit it.</string>
+    <string name="vault_count">%1$d</string>
+    <string name="set_background">Background</string>
+    <string name="bg_midnight">Midnight</string>
+    <string name="bg_graphite">Graphite</string>
+    <string name="bg_ocean">Ocean</string>
+    <string name="bg_sunset">Sunset</string>
+    <string name="bg_aurora">Aurora (colourful)</string>
+    <string name="bg_plain">Plain</string>
+    <string name="bg_photo">My photo</string>
+    <string name="bg_choose_photo">Choose a photo…</string>
+    <string name="bg_photo_note">The photo is copied into the app and stays on this phone only. Liquid Glass looks best over a photo.</string>
 </resources>

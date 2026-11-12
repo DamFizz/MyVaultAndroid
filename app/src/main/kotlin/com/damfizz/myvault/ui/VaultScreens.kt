@@ -18,6 +18,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -195,23 +196,35 @@ private fun VaultList(vm: VaultViewModel, pad: PaddingValues, favouritesOnly: Bo
     val categories = remember(collections) { collections.filter { it.kind == "category" } }
     val shown = remember(rev, query, filter, vm.sortBy) { vm.visibleItems(filter, query) }
     val untitled = stringResource(R.string.untitled)
+    // Home = category tiles. A search, a selection or an opened category switches to the item list.
+    val home = !favouritesOnly && vm.vaultHome && query.isBlank() && vm.selection.isEmpty()
+    var editingCollection by remember { mutableStateOf<VaultCollection?>(null) }
+    if (!favouritesOnly && !vm.vaultHome && vm.selection.isEmpty() && query.isBlank()) BackHandler(onBack = vm::backToHome)
 
     LazyColumn(contentPadding = pad, modifier = Modifier.fillMaxSize()) {
-        item { LargeTitle(if (favouritesOnly) stringResource(R.string.vault_favorites) else "MyVault", Modifier.padding(start = 6.dp, bottom = 12.dp)) }
-        item { GlassTextField(query, { query = it }, stringResource(R.string.vault_search), leading = Icons.Filled.Search) }
-        item {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 12.dp)) {
-                if (!favouritesOnly) {
-                    item { IconChip(Icons.Filled.FilterList, filterLabel(filter, collections), selected = filter != ItemFilter.All) { showViews = true } }
-                }
-                item { IconChip(Icons.AutoMirrored.Filled.Sort, stringResource(R.string.sort_title), selected = false) { showSort = true } }
-                if (!favouritesOnly) {
-                    items(categories, key = { it.id }) { cat ->
-                        val f = ItemFilter.Category(cat.id)
-                        Chip(cat.name, filter == f) { vm.filter = if (filter == f) ItemFilter.All else f }
-                    }
+        if (!favouritesOnly && !vm.vaultHome && query.isBlank()) {
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 12.dp)) {
+                    RowIconButton(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back), vm::backToHome, tint = c.text)
+                    Spacer(Modifier.width(4.dp))
+                    LargeTitle(if (filter == ItemFilter.All) stringResource(R.string.vault_all_items) else filterLabel(filter, collections))
                 }
             }
+        } else {
+            item { LargeTitle(if (favouritesOnly) stringResource(R.string.vault_favorites) else "MyVault", Modifier.padding(start = 6.dp, bottom = 12.dp)) }
+        }
+        item { GlassTextField(query, { query = it }, stringResource(R.string.vault_search), leading = Icons.Filled.Search) }
+        if (!home) {
+            item {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 12.dp)) {
+                    if (!favouritesOnly) {
+                        item { IconChip(Icons.Filled.FilterList, filterLabel(filter, collections), selected = filter != ItemFilter.All) { showViews = true } }
+                    }
+                    item { IconChip(Icons.AutoMirrored.Filled.Sort, stringResource(R.string.sort_title), selected = false) { showSort = true } }
+                }
+            }
+        } else {
+            item { Spacer(Modifier.height(12.dp)) }
         }
         if (vm.selection.isNotEmpty()) {
             item {
@@ -231,7 +244,7 @@ private fun VaultList(vm: VaultViewModel, pad: PaddingValues, favouritesOnly: Bo
                     }
                 }
             }
-        } else if (filter == ItemFilter.All && query.isBlank()) {
+        } else if (home) {
             // Overview: what needs attention (web dashboard)
             val corrupted = vm.corruptedCount()
             val due = vm.backupDue()
@@ -269,11 +282,22 @@ private fun VaultList(vm: VaultViewModel, pad: PaddingValues, favouritesOnly: Bo
                 }
             }
         }
-        if (filter == ItemFilter.Trash && shown.isNotEmpty()) {
+        if (home) {
+            item {
+                VaultHome(
+                    vm = vm,
+                    collections = collections,
+                    onOpen = vm::openList,
+                    onEdit = { editingCollection = it },
+                    onNew = { kind -> editingCollection = com.damfizz.myvault.core.Collections.newTemplate(kind, collections, System.currentTimeMillis()) },
+                )
+            }
+        }
+        if (!home && filter == ItemFilter.Trash && shown.isNotEmpty()) {
             item { GlassButton(stringResource(R.string.trash_empty), { askEmpty = true }, Modifier.fillMaxWidth().padding(bottom = 12.dp), prominent = false, destructive = true, icon = Icons.Filled.DeleteForever) }
         }
-        if (shown.isEmpty()) item { Body(stringResource(R.string.vault_empty), Modifier.padding(16.dp)) }
-        itemsIndexed(shown, key = { _, it -> it.id }) { index, item ->
+        if (!home && shown.isEmpty()) item { Body(stringResource(R.string.vault_empty), Modifier.padding(16.dp)) }
+        if (!home) itemsIndexed(shown, key = { _, it -> it.id }) { index, item ->
             val first = index == 0
             val last = index == shown.lastIndex
             val shape = RoundedCornerShape(
@@ -297,6 +321,8 @@ private fun VaultList(vm: VaultViewModel, pad: PaddingValues, favouritesOnly: Bo
             }
         }
     }
+
+    CollectionEditor(vm, editingCollection) { editingCollection = it }
 
     // ---- views
     GlassSheet(visible = showViews, onDismiss = { showViews = false }) {
@@ -815,5 +841,125 @@ private fun BiometricOfferSheet(vm: VaultViewModel) {
             }
         }, Modifier.fillMaxWidth(), icon = Icons.Filled.Fingerprint)
         GlassButton(stringResource(R.string.bio_offer_no), vm::declineBiometricOffer, Modifier.fillMaxWidth(), prominent = false)
+    }
+}
+
+// ------------------------------------------------------------------ Vault home: category tiles
+
+/** Glass tile for the Vault home grid: icon, count, name. Tap opens, press-and-hold edits. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun VaultTile(
+    title: String,
+    count: Int?,
+    icon: ImageVector,
+    color: androidx.compose.ui.graphics.Color,
+    modifier: Modifier = Modifier,
+    dashed: Boolean = false,
+    onLongClick: (() -> Unit)? = null,
+    onClick: () -> Unit,
+) {
+    val c = LocalGlassColors.current
+    val source = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    GlassSurface(
+        modifier
+            .height(112.dp)
+            .liquidPress(source, 0.94f)
+            .combinedClickable(interactionSource = source, indication = null, onLongClick = onLongClick, onClick = onClick),
+        shape = RoundedCornerShape(26.dp),
+        tint = if (dashed) c.glassTint.copy(alpha = c.glassTint.alpha * 0.6f) else c.glassTint,
+        refraction = 12.dp,
+        elevation = if (dashed) 4.dp else 10.dp,
+    ) {
+        Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.SpaceBetween) {
+            Row(verticalAlignment = Alignment.Top) {
+                IconTile(icon, 38.dp, color)
+                Spacer(Modifier.weight(1f))
+                if (count != null) Text("$count", style = Type.title, color = c.text)
+            }
+            Text(title, style = Type.headline, color = if (dashed) c.accent else c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+private fun TileGrid(tiles: List<@Composable (Modifier) -> Unit>) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        tiles.chunked(2).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                row.forEach { tile -> tile(Modifier.weight(1f)) }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun VaultHome(
+    vm: VaultViewModel,
+    collections: List<VaultCollection>,
+    onOpen: (ItemFilter) -> Unit,
+    onEdit: (VaultCollection) -> Unit,
+    onNew: (String) -> Unit,
+) {
+    val c = LocalGlassColors.current
+    val rev = vm.revision
+    val active = remember(rev) { vm.items().filter { it.archivedAt == null } }
+    val byCategory = remember(active) { active.groupingBy { it.categoryId }.eachCount() }
+    val bySection = remember(active) { active.groupingBy { it.sectionId }.eachCount() }
+    val categories = remember(collections) {
+        collections.filter { it.kind == "category" }.sortedWith(compareByDescending<VaultCollection> { it.pinned }.thenBy { it.order }.thenBy { it.name })
+    }
+    val folders = remember(collections) {
+        collections.filter { it.kind == "section" && it.parentId == null }.sortedWith(compareByDescending<VaultCollection> { it.pinned }.thenBy { it.order }.thenBy { it.name })
+    }
+    val uncategorized = active.count { it.categoryId == null && it.sectionId == null }
+    val newCategory = stringResource(R.string.org_new_category)
+    val newFolder = stringResource(R.string.org_new_folder)
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        TileGrid(
+            listOf<@Composable (Modifier) -> Unit>(
+                { m -> VaultTile(stringResource(R.string.vault_all_items), active.size, Icons.Filled.Shield, c.accent, m) { onOpen(ItemFilter.All) } },
+                { m -> VaultTile(stringResource(R.string.vault_favorites), active.count { it.favorite }, Icons.Filled.Star, c.star, m) { onOpen(ItemFilter.Favorites) } },
+            ),
+        )
+
+        SectionHeader(stringResource(R.string.nav_categories))
+        TileGrid(
+            categories.map<VaultCollection, @Composable (Modifier) -> Unit> { cat ->
+                { m: Modifier ->
+                    VaultTile(cat.name, byCategory[cat.id] ?: 0, collectionIcon(cat.icon), parseColor(cat.color), m, onLongClick = { onEdit(cat) }) {
+                        onOpen(ItemFilter.Category(cat.id))
+                    }
+                }
+            } + listOf<@Composable (Modifier) -> Unit>(
+                { m -> VaultTile(newCategory, null, Icons.Filled.Add, c.accent, m, dashed = true) { onNew("category") } },
+            ),
+        )
+
+        SectionHeader(stringResource(R.string.nav_folders))
+        TileGrid(
+            folders.map<VaultCollection, @Composable (Modifier) -> Unit> { f ->
+                { m: Modifier ->
+                    val count = com.damfizz.myvault.core.Items.descendantSectionIds(collections, f.id).sumOf { bySection[it] ?: 0 }
+                    VaultTile(f.name, count, collectionIcon(f.icon), parseColor(f.color), m, onLongClick = { onEdit(f) }) {
+                        onOpen(ItemFilter.Section(f.id))
+                    }
+                }
+            } + listOf<@Composable (Modifier) -> Unit>(
+                { m -> VaultTile(newFolder, null, Icons.Filled.CreateNewFolder, c.accent, m, dashed = true) { onNew("section") } },
+            ),
+        )
+
+        if (uncategorized > 0) {
+            InsetGroup {
+                ListRow(stringResource(R.string.nav_uncategorized), leading = { IconTile(Icons.Filled.Inbox, 34.dp) }, onClick = { onOpen(ItemFilter.Uncategorized) }) {
+                    Text("$uncategorized", style = Type.headline, color = c.text2)
+                    Icon(Icons.Filled.ChevronRight, null, tint = c.text3, modifier = Modifier.size(22.dp))
+                }
+            }
+        }
+        Footnote(stringResource(R.string.vault_home_hint), Modifier.padding(horizontal = 16.dp))
     }
 }

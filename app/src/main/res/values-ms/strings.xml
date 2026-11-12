@@ -476,4 +476,17 @@
     <string name="gs_package">Package name</string>
     <string name="gs_sha1">Cap jari sijil SHA-1</string>
     <string name="clipboard_copied_plain">Disalin</string>
+    <string name="vault_all_items">Semua item</string>
+    <string name="vault_home_hint">Tekan kategori untuk buka. Tekan lama untuk sunting.</string>
+    <string name="vault_count">%1$d</string>
+    <string name="set_background">Latar belakang</string>
+    <string name="bg_midnight">Midnight</string>
+    <string name="bg_graphite">Graphite</string>
+    <string name="bg_ocean">Ocean</string>
+    <string name="bg_sunset">Sunset</string>
+    <string name="bg_aurora">Aurora (warna-warni)</string>
+    <string name="bg_plain">Kosong</string>
+    <string name="bg_photo">Gambar saya</string>
+    <string name="bg_choose_photo">Pilih gambar…</string>
+    <string name="bg_photo_note">Gambar disalin ke dalam app dan kekal di telefon ini sahaja. Liquid Glass paling cantik di atas gambar.</string>
 </resources>

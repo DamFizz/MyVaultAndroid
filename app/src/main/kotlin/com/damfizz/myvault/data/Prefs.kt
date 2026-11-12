@@ -47,6 +47,13 @@ class Prefs(context: Context) {
         set(v) { sp.edit().putLong("lastUpdateCheck", v).apply() }
     fun updateAutoUpdateCheck(v: Boolean) { autoUpdateCheck = v; sp.edit().putBoolean("autoUpdateCheck", v).apply() }
 
+    /** midnight · graphite · ocean · sunset · aurora · plain · photo */
+    var wallpaper by mutableStateOf(sp.getString("wallpaper", "midnight")!!); private set
+    /** bumped whenever the photo file changes, so it is reloaded */
+    var wallpaperVersion by mutableStateOf(sp.getInt("wallpaperVersion", 0)); private set
+    fun updateWallpaper(v: String) { wallpaper = v; sp.edit().putString("wallpaper", v).apply() }
+    fun bumpWallpaperVersion() { wallpaperVersion += 1; sp.edit().putInt("wallpaperVersion", wallpaperVersion).apply() }
+
     fun updateAutoSync(v: Boolean) { autoSync = v; sp.edit().putBoolean("autoSync", v).apply() }
 
     fun updateTheme(v: String) { theme = v; sp.edit().putString("theme", v).apply() }
