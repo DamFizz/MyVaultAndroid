@@ -30,7 +30,7 @@ internal fun BackupScreen(vm: VaultViewModel) {
     val context = LocalContext.current
     val rev = vm.revision
     val date = remember { DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT) }
-    fun back() { vm.closeOpenedBackup(); vm.tab = 3; vm.go(Screen.Vault) }
+    fun back() { vm.closeOpenedBackup(); vm.backFromSubScreen() }
     BackHandler(onBack = ::back)
 
     // ---- export

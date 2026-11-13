@@ -56,6 +56,7 @@ sealed interface Screen {
     data object Organize : Screen
     data object BackupRestore : Screen
     data object Sync : Screen
+    data object Settings : Screen
 }
 
 /** One opened backup waiting for confirmation before it replaces the vault on this phone. */
@@ -74,6 +75,10 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
         private set
     /** selected tab on the main screen: 0 vault, 1 generator, 2 security, 3 settings */
     var tab by mutableStateOf(0)
+
+    /** Where Organize / Backup / Sync return to: Settings when opened from there, else the Vault. */
+    var subScreenReturn: Screen by mutableStateOf(Screen.Vault)
+    fun backFromSubScreen() = go(subScreenReturn)
     var busy by mutableStateOf(false)
         private set
     var error by mutableStateOf<String?>(null)

@@ -277,6 +277,14 @@
     <string name="set_display_name_none">None</string>
     <string name="set_display_name_hint">e.g. DamFizz</string>
     <string name="set_display_name_sub">Shown as "Welcome, name" before unlocking. Kept on this phone only, outside the encrypted vault, so anyone holding the phone can see it.</string>
+    <string name="profile_title">Profile</string>
+    <string name="lock_now">Lock now</string>
+    <string name="profile_add_name">Add your name in Settings</string>
+    <string name="profile_hold_hint">Tip: press and hold the profile button to lock straight away.</string>
+    <plurals name="profile_items">
+        <item quantity="one">%1$d item in your vault</item>
+        <item quantity="other">%1$d items in your vault</item>
+    </plurals>
     <string name="set_accent">Accent colour</string>
     <string name="set_language">Language</string>
     <string name="set_language_system">Follows the phone</string>

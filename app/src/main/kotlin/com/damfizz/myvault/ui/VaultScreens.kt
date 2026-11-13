@@ -40,6 +40,13 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -144,11 +151,12 @@ internal fun MainScreen(vm: VaultViewModel) {
         TabItem(Icons.Filled.Shield, stringResource(R.string.tab_vault)),
         TabItem(Icons.Filled.Password, stringResource(R.string.tab_generator)),
         TabItem(Icons.Filled.HealthAndSafety, stringResource(R.string.tab_security)),
-        TabItem(Icons.Filled.Settings, stringResource(R.string.settings)),
     )
-    val lock = stringResource(R.string.lock)
     val add = stringResource(R.string.action_add)
     var chooseType by remember { mutableStateOf(false) }
+    var showProfile by remember { mutableStateOf(false) }
+    if (vm.tab > tabs.lastIndex) vm.tab = 0
+    LaunchedEffect(Unit) { vm.subScreenReturn = Screen.Vault }
     AutoSyncOnUnlock(vm)
     BiometricOfferSheet(vm)
     LaunchedEffect(Unit) { vm.checkForUpdates(manual = false) }
@@ -164,10 +172,10 @@ internal fun MainScreen(vm: VaultViewModel) {
                     modifier = Modifier.align(Alignment.CenterEnd).fillMaxWidth(),
                 ) {
                     GlassIconButton(Icons.Filled.Add, add, { chooseType = true })
-                    GlassIconButton(Icons.Filled.Lock, lock, vm::lock)
+                    ProfileButton(vm, onClick = { showProfile = true })
                 }
             } else {
-                GlassIconButton(Icons.Filled.Lock, lock, vm::lock, Modifier.align(Alignment.CenterEnd))
+                ProfileButton(vm, onClick = { showProfile = true }, modifier = Modifier.align(Alignment.CenterEnd))
             }
         },
         bottomBar = { GlassTabBar(tabs, vm.tab, { vm.tab = it; if (it != 0) { vm.searchOpen = false; vm.query = "" } }, Modifier.fillMaxWidth()) },
@@ -176,11 +184,11 @@ internal fun MainScreen(vm: VaultViewModel) {
             when (tab) {
                 0 -> VaultList(vm, pad, favouritesOnly = false)
                 1 -> GeneratorTab(vm, pad)
-                2 -> SecurityTab(vm, pad)
-                else -> SettingsTab(vm, pad)
+                else -> SecurityTab(vm, pad)
             }
         }
     }
+    ProfileSheet(vm, showProfile) { showProfile = false }
     GlassSheet(visible = chooseType, onDismiss = { chooseType = false }) {
         Text(stringResource(R.string.item_new_title), style = Type.headline, color = LocalGlassColors.current.text)
         InsetGroup {
@@ -189,6 +197,68 @@ internal fun MainScreen(vm: VaultViewModel) {
                 if (i != Items.TYPES.lastIndex) GroupDivider(68.dp)
             }
         }
+    }
+}
+
+// ------------------------------------------------------------------ profile (top-right): settings + lock
+
+/** First letter of the lock-screen name, or null when no name is set. */
+private fun initialOf(name: String): String? = name.trim().firstOrNull()?.uppercaseChar()?.toString()
+
+@Composable
+private fun Avatar(name: String, size: androidx.compose.ui.unit.Dp) {
+    val c = LocalGlassColors.current
+    val initial = initialOf(name)
+    if (initial != null) {
+        Text(initial, style = Type.headline.copy(fontSize = (size.value * 0.42f).sp), color = Color.White)
+    } else {
+        Icon(Icons.Filled.Person, null, tint = Color.White, modifier = Modifier.size(size * 0.5f))
+    }
+}
+
+/** Glass avatar in the top bar. Tap: profile (Settings, Lock). Press and hold: lock right away. */
+@Composable
+private fun ProfileButton(vm: VaultViewModel, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val c = LocalGlassColors.current
+    val interaction = rememberGlassInteraction(GlassMotion.FLEX_SMALL)
+    val label = stringResource(R.string.profile_title)
+    GlassSurface(
+        modifier
+            .size(46.dp)
+            .glassPress(interaction, onLongClick = vm::lock, onClick = onClick)
+            .semantics { contentDescription = label },
+        shape = Capsule,
+        tint = c.accent.copy(alpha = if (c.dark) 0.55f else 0.75f),
+        interaction = interaction,
+        contentAlignment = Alignment.Center,
+    ) { Avatar(vm.prefs.displayName, 46.dp) }
+}
+
+@Composable
+private fun ProfileSheet(vm: VaultViewModel, visible: Boolean, onDismiss: () -> Unit) {
+    val c = LocalGlassColors.current
+    val name = vm.prefs.displayName
+    val count = remember(vm.revision, visible) { if (visible) vm.visibleItems(ItemFilter.All, "").size else 0 }
+    GlassSheet(visible = visible, onDismiss = onDismiss) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)) {
+            Box(Modifier.size(64.dp).clip(CircleShape).background(c.accent), contentAlignment = Alignment.Center) { Avatar(name, 64.dp) }
+            Spacer(Modifier.width(14.dp))
+            Column {
+                Text(name.ifBlank { "MyVault" }, style = Type.title, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    if (name.isBlank()) stringResource(R.string.profile_add_name) else pluralStringResource(R.plurals.profile_items, count, count),
+                    style = Type.footnote,
+                    color = c.text2,
+                )
+            }
+        }
+        InsetGroup {
+            ListRow(stringResource(R.string.settings_title), leading = { IconTile(Icons.Filled.Settings, 34.dp) }, onClick = { onDismiss(); vm.go(Screen.Settings) }) {
+                Icon(Icons.Filled.ChevronRight, null, tint = c.text3, modifier = Modifier.size(22.dp))
+            }
+        }
+        GlassButton(stringResource(R.string.lock_now), { onDismiss(); vm.lock() }, Modifier.fillMaxWidth(), icon = Icons.Filled.Lock)
+        Footnote(stringResource(R.string.profile_hold_hint), Modifier.padding(horizontal = 8.dp))
     }
 }
 

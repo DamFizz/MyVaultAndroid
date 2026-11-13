@@ -276,6 +276,13 @@
     <string name="set_display_name_none">Tiada</string>
     <string name="set_display_name_hint">cth. DamFizz</string>
     <string name="set_display_name_sub">Dipaparkan sebagai "Selamat datang, nama" sebelum buka kunci. Disimpan di telefon ini sahaja, di luar vault yang disulitkan, jadi sesiapa yang memegang telefon boleh melihatnya.</string>
+    <string name="profile_title">Profil</string>
+    <string name="lock_now">Kunci sekarang</string>
+    <string name="profile_add_name">Tambah nama anda dalam Tetapan</string>
+    <string name="profile_hold_hint">Tip: tekan lama butang profil untuk terus kunci.</string>
+    <plurals name="profile_items">
+        <item quantity="other">%1$d item dalam vault anda</item>
+    </plurals>
     <string name="set_accent">Warna aksen</string>
     <string name="set_language">Bahasa</string>
     <string name="set_language_system">Ikut telefon</string>

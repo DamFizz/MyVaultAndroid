@@ -72,7 +72,7 @@ internal fun SyncScreen(vm: VaultViewModel) {
     val connect = rememberDriveAuth(vm)
     val date = remember { DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT) }
     var ask by remember { mutableStateOf("") }
-    fun back() { vm.tab = 3; vm.go(Screen.Vault) }
+    fun back() { vm.backFromSubScreen() }
     BackHandler(onBack = ::back)
     val conflicts = remember(rev) { vm.conflicts() }
     val last = remember(rev, vm.syncing) { vm.lastSyncAt() }

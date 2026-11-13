@@ -148,6 +148,7 @@ fun AppRoot(vm: VaultViewModel) {
                 Screen.Organize -> OrganizeScreen(vm)
                 Screen.BackupRestore -> BackupScreen(vm)
                 Screen.Sync -> SyncScreen(vm)
+                Screen.Settings -> SettingsScreen(vm)
             }
         }
         val host = LocalOverlayHost.current
@@ -165,8 +166,8 @@ private fun depth(s: Screen): Int = when (s) {
     Screen.Welcome, Screen.Unlock -> 0
     Screen.Create, Screen.Import, is Screen.SecondFactor -> 1
     Screen.Vault -> 2
-    is Screen.Detail, Screen.Organize, Screen.BackupRestore, Screen.Sync -> 3
-    Screen.Editor -> 4
+    is Screen.Detail, Screen.Settings -> 3
+    Screen.Editor, Screen.Organize, Screen.BackupRestore, Screen.Sync -> 4
 }
 
 private fun isAuth(s: Screen) = s is Screen.Welcome || s is Screen.Unlock || s is Screen.Create || s is Screen.Import || s is Screen.SecondFactor

@@ -155,7 +155,21 @@ private fun QrCode(text: String, modifier: Modifier = Modifier) {
     }
 }
 
-// ------------------------------------------------------------------ settings tab
+// ------------------------------------------------------------------ settings screen (opened from the profile button)
+
+@Composable
+internal fun SettingsScreen(vm: VaultViewModel) {
+    LaunchedEffect(Unit) { vm.subScreenReturn = Screen.Settings }
+    BackHandler { vm.go(Screen.Vault) }
+    GlassScaffold(
+        topBar = {
+            GlassIconButton(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back), { vm.go(Screen.Vault) }, Modifier.align(Alignment.CenterStart))
+            GlassIconButton(Icons.Filled.Lock, stringResource(R.string.lock), vm::lock, Modifier.align(Alignment.CenterEnd))
+        },
+    ) { pad -> SettingsTab(vm, pad) }
+}
+
+// ------------------------------------------------------------------ settings body
 
 @Composable
 internal fun SettingsTab(vm: VaultViewModel, pad: PaddingValues) {
@@ -564,7 +578,7 @@ internal fun OrganizeScreen(vm: VaultViewModel) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var editing by remember { mutableStateOf<VaultCollection?>(null) }
     val kind = if (tab == 0) "category" else "section"
-    BackHandler { vm.tab = 3; vm.go(Screen.Vault) }
+    BackHandler { vm.backFromSubScreen() }
 
     // categories in order; folders as a tree
     val rows: List<Pair<VaultCollection, Int>> = remember(all, tab) {
@@ -584,7 +598,7 @@ internal fun OrganizeScreen(vm: VaultViewModel) {
 
     GlassScaffold(
         topBar = {
-            GlassIconButton(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back), { vm.tab = 3; vm.go(Screen.Vault) }, Modifier.align(Alignment.CenterStart))
+            GlassIconButton(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back), { vm.backFromSubScreen() }, Modifier.align(Alignment.CenterStart))
             GlassIconButton(Icons.Filled.Add, stringResource(if (tab == 0) R.string.org_new_category else R.string.org_new_folder), { editing = Collections.newTemplate(kind, all, System.currentTimeMillis()) }, Modifier.align(Alignment.CenterEnd))
         },
     ) { pad ->
