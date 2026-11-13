@@ -173,8 +173,6 @@ class GlassInteraction internal constructor(private val scope: CoroutineScope, p
     /** 0 at rest, 1 while pressed: drives the inner light, extra lensing and flex. */
     val energy = Animatable(0f)
     val flex = Animatable(1f)
-    /** Finger pull in px (the control leans toward the finger while held). */
-    val pull = Animatable(Offset.Zero, Offset.VectorConverter)
     /** Touch position inside the surface, px; Unspecified when not touched. */
     var touch by mutableStateOf(Offset.Unspecified)
         internal set
@@ -187,22 +185,15 @@ class GlassInteraction internal constructor(private val scope: CoroutineScope, p
         if (!a.reduceMotion) scope.launch { flex.animateTo(flexTo, GlassMotion.flexIn(a.reduceMotion)) }
     }
 
+    /** The light follows the finger; the control itself stays put and level (no lean, no tilt). */
     internal fun move(at: Offset) {
         touch = at
-        if (access().reduceMotion || size == Size.Zero) return
-        val c = Offset(size.width / 2f, size.height / 2f)
-        val d = at - c
-        // rubber-band: proportional near the control, saturating further away
-        val limit = minOf(size.width, size.height) * 0.22f
-        fun band(v: Float) = limit * (v / (abs(v) + limit * 2.5f)) * 2.5f * GlassMotion.PULL / 0.07f
-        scope.launch { pull.snapTo(Offset(band(d.x), band(d.y))) }
     }
 
     internal fun release(velocity: Offset = Offset.Zero) {
         val a = access()
         scope.launch { energy.animateTo(0f, GlassMotion.relax(a.reduceMotion)) }
         scope.launch { flex.animateTo(1f, GlassMotion.flexOut(a.reduceMotion)) }
-        scope.launch { pull.animateTo(Offset.Zero, GlassMotion.offsetSpring(a.reduceMotion), velocity * 0.15f) }
     }
 }
 
@@ -465,16 +456,12 @@ fun GlassSurface(
     Box(
         modifier
             .graphicsLayer {
-                // Gel flex and finger pull (layer-only; never recomposes).
+                // Gentle, even swell while pressed (layer-only; never recomposes). Same in both
+                // axes and centred, so a press off-centre never makes the control lean.
                 if (interaction != null) {
                     val f = interaction.flex.value
-                    val pl = interaction.pull.value
-                    val sx = 1f + abs(pl.x) / size.width.coerceAtLeast(1f) * 0.6f
-                    val sy = 1f + abs(pl.y) / size.height.coerceAtLeast(1f) * 0.6f
-                    scaleX = f * sx / sqrt(sy)
-                    scaleY = f * sy / sqrt(sx)
-                    translationX = pl.x
-                    translationY = pl.y
+                    scaleX = f
+                    scaleY = f
                 }
                 transformOrigin = TransformOrigin.Center
             }

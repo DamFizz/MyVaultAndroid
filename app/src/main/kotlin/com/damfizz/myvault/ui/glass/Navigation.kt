@@ -81,14 +81,17 @@ import kotlin.math.roundToInt
 
 class TabItem(val icon: ImageVector, val label: String)
 
+/** How much bigger the lens is than the resting pill when lifted. */
+private const val LENS_RISE = 0.10f
+
 /**
  * Floating glass tab bar.
  *
  * At rest the selection is a flat pill (Apple: glass is quiet at rest and comes alive on touch).
  * When the bar is touched the pill lifts into a lens of clear glass that magnifies and refracts the
- * bar's own icons; it follows the finger when dragged, keeps the fling velocity, snaps to the
- * nearest tab with a spring, stretches with speed and squashes as it brakes, then sinks back into a
- * flat pill once it lands. Every phase is an interruptible spring.
+ * bar's own icons. It rises centred on the touched tab and holds still while the finger rests; a
+ * clear sideways drag moves it, and on release it keeps the fling velocity, snaps to the nearest
+ * tab and sinks back into a flat pill. Every phase is an interruptible, lightly damped spring.
  */
 @Composable
 fun GlassTabBar(tabs: List<TabItem>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
@@ -101,7 +104,6 @@ fun GlassTabBar(tabs: List<TabItem>, selected: Int, onSelect: (Int) -> Unit, mod
     val lift = remember { Animatable(0f) }
     val presence = remember { Animatable(0f) }
     var dragging by remember { mutableStateOf(false) }
-    var dragVelocity by remember { mutableFloatStateOf(0f) }
     val barContent = rememberBackdrop()
     val currentSelected by rememberUpdatedState(selected)
     val currentOnSelect by rememberUpdatedState(onSelect)
@@ -124,6 +126,11 @@ fun GlassTabBar(tabs: List<TabItem>, selected: Int, onSelect: (Int) -> Unit, mod
                         val tapped = (down.position.x / w).toInt().coerceIn(0, count - 1)
                         scope.launch { presence.animateTo(1f, GlassMotion.presence(rm)) }
                         scope.launch { lift.animateTo(1f, GlassMotion.lift(rm)) }
+                        // The lens rises centred on the tab under the finger, not wherever the finger is.
+                        if (tapped.toFloat() != pos.targetValue) scope.launch { pos.animateTo(tapped.toFloat(), GlassMotion.travel(rm)) }
+                        // A finger resting on the bar always trembles a little: only a clear sideways
+                        // movement counts as dragging the lens.
+                        val dragStart = maxOf(viewConfiguration.touchSlop * 2.5f, 20.dp.toPx())
                         val tracker = VelocityTracker()
                         tracker.addPosition(down.uptimeMillis, down.position)
                         var dragged = false
@@ -131,7 +138,7 @@ fun GlassTabBar(tabs: List<TabItem>, selected: Int, onSelect: (Int) -> Unit, mod
                             val event = awaitPointerEvent()
                             val ch = event.changes.firstOrNull { it.id == down.id } ?: break
                             tracker.addPosition(ch.uptimeMillis, ch.position)
-                            if (!dragged && abs(ch.position.x - down.position.x) > viewConfiguration.touchSlop) {
+                            if (!dragged && abs(ch.position.x - down.position.x) > dragStart) {
                                 dragged = true
                                 dragging = true
                             }
@@ -139,7 +146,6 @@ fun GlassTabBar(tabs: List<TabItem>, selected: Int, onSelect: (Int) -> Unit, mod
                                 ch.consume()
                                 val target = index(ch.position.x)
                                 scope.launch { pos.snapTo(target) }
-                                dragVelocity = tracker.calculateVelocity().x / w
                             }
                             if (!ch.pressed) break
                         }
@@ -147,7 +153,6 @@ fun GlassTabBar(tabs: List<TabItem>, selected: Int, onSelect: (Int) -> Unit, mod
                         // Project the fling a little forward, then snap to the nearest tab.
                         val target = if (dragged) (pos.value + vx * 0.12f).roundToInt().coerceIn(0, count - 1) else tapped
                         dragging = false
-                        dragVelocity = 0f
                         if (target != currentSelected) currentOnSelect(target)
                         scope.launch {
                             pos.animateTo(target.toFloat(), GlassMotion.travel(rm), initialVelocity = vx)
@@ -172,7 +177,7 @@ fun GlassTabBar(tabs: List<TabItem>, selected: Int, onSelect: (Int) -> Unit, mod
                         val pr = presence.value
                         if (lensCapable && pr > 0.01f) {
                             val w = size.width / count
-                            val up = 1f + 0.16f * lift.value
+                            val up = 1f + LENS_RISE * lift.value
                             val lw = w * up - 2.dp.toPx()
                             val lh = size.height * up - 2.dp.toPx()
                             val cx = pos.value * w + w / 2f
@@ -232,11 +237,9 @@ fun GlassTabBar(tabs: List<TabItem>, selected: Int, onSelect: (Int) -> Unit, mod
                             .graphicsLayer {
                                 val pr = presence.value
                                 alpha = (pr * 4f).coerceIn(0f, 1f)
-                                val v = if (dragging) dragVelocity else pos.velocity
-                                val stretch = if (rm) 0f else (abs(v) / 9f).coerceAtMost(0.22f)
-                                val up = 1f + 0.16f * lift.value
-                                scaleX = up * (1f + stretch)
-                                scaleY = up * (1f - stretch * 0.45f)
+                                val up = 1f + LENS_RISE * lift.value
+                                scaleX = up
+                                scaleY = up
                             },
                         shape = Capsule,
                         tint = Color.White.copy(alpha = if (c.dark) 0.04f else 0.10f),

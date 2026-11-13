@@ -31,11 +31,8 @@ val LocalGlassAccessibility = staticCompositionLocalOf { GlassAccessibility() }
 
 object GlassMotion {
     /** How far an interactive glass control grows while held (gel flex), by size class. */
-    const val FLEX_SMALL = 1.10f
-    const val FLEX_MEDIUM = 1.045f
-
-    /** Finger pull: how much a held control leans toward the finger (fraction of the offset). */
-    const val PULL = 0.07f
+    const val FLEX_SMALL = 1.06f
+    const val FLEX_MEDIUM = 1.025f
 
     private fun <T> s(damping: Float, stiffness: Float, reduce: Boolean): FiniteAnimationSpec<T> =
         spring(if (reduce) Spring.DampingRatioNoBouncy else damping, stiffness)
@@ -47,16 +44,16 @@ object GlassMotion {
     fun <T> relax(reduce: Boolean): FiniteAnimationSpec<T> = spring(Spring.DampingRatioNoBouncy, 420f)
 
     /** Gel flex outwards on press. */
-    fun <T> flexIn(reduce: Boolean): FiniteAnimationSpec<T> = s(0.62f, 900f, reduce)
+    fun <T> flexIn(reduce: Boolean): FiniteAnimationSpec<T> = s(0.85f, 900f, reduce)
 
     /** Settle back after release, with a small rebound. */
-    fun <T> flexOut(reduce: Boolean): FiniteAnimationSpec<T> = s(0.46f, 420f, reduce)
+    fun <T> flexOut(reduce: Boolean): FiniteAnimationSpec<T> = s(0.72f, 420f, reduce)
 
     /** Indicator / lens travel between tabs or segments. */
     fun <T> travel(reduce: Boolean): FiniteAnimationSpec<T> = s(0.78f, 380f, reduce)
 
-    /** A lens lifting off its track (under-damped, so it overshoots a little and rebounds). */
-    fun <T> lift(reduce: Boolean): FiniteAnimationSpec<T> = s(0.52f, 620f, reduce)
+    /** A lens lifting off its track (just a hint of overshoot, no wobble). */
+    fun <T> lift(reduce: Boolean): FiniteAnimationSpec<T> = s(0.82f, 620f, reduce)
 
     /** Glass presence: materialize/dematerialize by modulating lensing, quickly. */
     fun <T> presence(reduce: Boolean): FiniteAnimationSpec<T> = spring(Spring.DampingRatioNoBouncy, 900f)

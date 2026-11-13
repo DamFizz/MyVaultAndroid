@@ -21,7 +21,7 @@ This file covers the glass material, the motion system and the reasons behind th
 |---|---|
 | Glass bends and concentrates light (*lensing*), it does not just blur | The AGSL lens refracts along a curved bevel; blur is small and only one ingredient |
 | It materialises by modulating lensing, not by fading | `presence` uniform; sheets and alerts bring in refraction and rim as they rise |
-| It responds instantly, "flexing and energizing with light"; the glow starts under the fingertip | `GlassInteraction`: energy spring, a touch-located inner glow, a brighter rim near the finger, gel flex, finger pull |
+| It responds instantly, "flexing and energizing with light"; the glow starts under the fingertip | `GlassInteraction`: energy spring, a touch-located inner glow, a brighter rim near the finger, a gentle even swell (no lean or tilt) |
 | Glass is for the navigation layer, not content | Vault tiles became solid fills with a touch highlight; glass stays on bars, buttons, sheets and alerts |
 | Avoid glass on glass | `LocalInsideGlass`: a glass button placed on a sheet draws as a fill |
 | Larger glass reads thicker | `GlassMaterials.Thick` for sheets and alerts: deeper bevel, more depth, deeper shadow |
@@ -49,8 +49,10 @@ instead of compiling again. The old engine created a new `RuntimeShader` on ever
   rapid taps, fast back gestures and reversals continue smoothly from where they are.
 - **Tab bar.** At rest the selection is a flat pill. On touch it lifts into a clear lens that
   magnifies the bar's own icons. The lens:
-  - follows a drag, and projects the fling velocity before snapping to the nearest tab;
-  - stretches with speed;
+  - rises centred on the touched tab and holds still while the finger rests (a small tremble
+    is not a drag);
+  - follows a clear sideways drag, and projects the fling velocity before snapping to the
+    nearest tab;
   - sinks back into the flat pill after it lands.
 - **Search.** The round button expands into a field across the top bar and absorbs the other
   buttons.
@@ -89,7 +91,7 @@ the optics, and both are now fixed.
 
 | Setting | Effect |
 |---|---|
-| Motion (*System / Reduced / Full*) | *System* follows Android's "Remove animations". Reduced means no overshoot, flex, pull or stretch. |
+| Motion (*System / Reduced / Full*) | *System* follows Android's "Remove animations". Reduced means no overshoot or swell. |
 | Reduce transparency | Frostier, more opaque glass with no refraction and no dispersion. The tab bar shows a plain pill. |
 | Increase contrast | Solid outlines and a more opaque tint. Also follows the system contrast setting on Android 14+. |
 
@@ -141,7 +143,7 @@ cell gives the range across the three runs.
 |---|---|
 | `docs/shots/1-vault-home.jpg` | Glass bars, solid content tiles, scroll edge effect |
 | `docs/shots/2-tab-lens.jpg` | Held tab: the lens lifted off the bar |
-| `docs/shots/2b-tab-lens-drag.jpg` | Lens dragged between tabs: stretched, with edge refraction and dispersion |
+| `docs/shots/2b-tab-lens-drag.jpg` | Lens dragged between tabs, with edge refraction and dispersion (taken in 0.2.3; the lens no longer stretches since 0.2.4) |
 | `docs/shots/3-search-open.jpg` | Search after the morph, with the keyboard up |
 | `docs/shots/4-settings.jpg` | Motion, Reduce transparency and Increase contrast settings |
 | `docs/shots/5-unlock-welcome.jpg` | The "Welcome, name" lock screen |
