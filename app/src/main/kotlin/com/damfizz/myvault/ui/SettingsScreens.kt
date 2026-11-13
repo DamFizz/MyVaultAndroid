@@ -199,6 +199,8 @@ internal fun SettingsTab(vm: VaultViewModel, pad: PaddingValues) {
 
         SectionHeader(stringResource(R.string.set_appearance))
         InsetGroup {
+            ValueRow(stringResource(R.string.set_display_name), prefs.displayName.ifBlank { stringResource(R.string.set_display_name_none) }, Icons.Filled.Person) { sheet = "name" }
+            GroupDivider(64.dp)
             val themeLabel = stringResource(when (prefs.theme) { "dark" -> R.string.set_theme_dark; "light" -> R.string.set_theme_light; else -> R.string.set_theme_system })
             ValueRow(stringResource(R.string.set_theme), themeLabel, Icons.Filled.DarkMode) { sheet = "theme" }
             GroupDivider(64.dp)
@@ -217,6 +219,13 @@ internal fun SettingsTab(vm: VaultViewModel, pad: PaddingValues) {
                     }
                 }
             }
+            GroupDivider(64.dp)
+            val motionLabel = stringResource(when (prefs.motion) { "reduced" -> R.string.set_motion_reduced; "full" -> R.string.set_motion_full; else -> R.string.set_theme_system })
+            ValueRow(stringResource(R.string.set_motion), motionLabel, Icons.Filled.Animation) { sheet = "motion" }
+            GroupDivider(16.dp)
+            ToggleRow(stringResource(R.string.set_reduce_transparency), prefs.reduceTransparency, prefs::updateReduceTransparency, stringResource(R.string.set_reduce_transparency_sub))
+            GroupDivider(16.dp)
+            ToggleRow(stringResource(R.string.set_high_contrast), prefs.highContrast, prefs::updateHighContrast)
             if (Build.VERSION.SDK_INT >= 33) {
                 GroupDivider(64.dp)
                 val tag = remember(rev, sheet) { context.getSystemService(LocaleManager::class.java).applicationLocales.toLanguageTags() }
@@ -353,6 +362,14 @@ internal fun SettingsTab(vm: VaultViewModel, pad: PaddingValues) {
     }
 
     // ---- option sheets
+    GlassSheet(visible = sheet == "name", onDismiss = ::close) {
+        var draft by remember(sheet) { mutableStateOf(prefs.displayName) }
+        Text(stringResource(R.string.set_display_name), style = Type.headline, color = c.text)
+        Footnote(stringResource(R.string.set_display_name_sub))
+        GlassTextField(draft, { draft = it.take(40) }, stringResource(R.string.set_display_name_hint), onDone = { prefs.updateDisplayName(draft); close() })
+        GlassButton(stringResource(R.string.action_save), { prefs.updateDisplayName(draft); close() }, Modifier.fillMaxWidth())
+    }
+    OptionSheet(sheet == "motion", stringResource(R.string.set_motion), listOf("system" to stringResource(R.string.set_theme_system), "reduced" to stringResource(R.string.set_motion_reduced), "full" to stringResource(R.string.set_motion_full)), prefs.motion, prefs::updateMotion, ::close)
     OptionSheet(sheet == "theme", stringResource(R.string.set_theme), listOf("system" to stringResource(R.string.set_theme_system), "light" to stringResource(R.string.set_theme_light), "dark" to stringResource(R.string.set_theme_dark)), prefs.theme, prefs::updateTheme, ::close)
     if (Build.VERSION.SDK_INT >= 33) {
         val lm = context.getSystemService(LocaleManager::class.java)

@@ -266,6 +266,17 @@
     <string name="set_theme_dark">Dark</string>
     <string name="set_theme_light">Light</string>
     <string name="set_theme_system">System</string>
+    <string name="set_motion">Motion</string>
+    <string name="set_motion_reduced">Reduced</string>
+    <string name="set_motion_full">Full</string>
+    <string name="set_reduce_transparency">Reduce transparency</string>
+    <string name="set_reduce_transparency_sub">Frostier glass, no refraction</string>
+    <string name="set_high_contrast">Increase contrast</string>
+    <string name="welcome_name">Welcome, %1$s</string>
+    <string name="set_display_name">Name on lock screen</string>
+    <string name="set_display_name_none">None</string>
+    <string name="set_display_name_hint">e.g. DamFizz</string>
+    <string name="set_display_name_sub">Shown as "Welcome, name" before unlocking. Kept on this phone only, outside the encrypted vault, so anyone holding the phone can see it.</string>
     <string name="set_accent">Accent colour</string>
     <string name="set_language">Language</string>
     <string name="set_language_system">Follows the phone</string>

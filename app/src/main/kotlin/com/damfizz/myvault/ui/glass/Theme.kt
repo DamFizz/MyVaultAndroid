@@ -151,6 +151,7 @@ fun GlassTheme(
     accent: String = "blue",
     wallpaper: String = "midnight",
     wallpaperImage: androidx.compose.ui.graphics.ImageBitmap? = null,
+    accessibility: GlassAccessibility = GlassAccessibility(),
     content: @Composable () -> Unit,
 ) {
     val pair = Accents[accent] ?: Accents.getValue("blue")
@@ -165,7 +166,11 @@ fun GlassTheme(
     } else {
         lightColorScheme(primary = colors.accent, background = colors.base, surface = colors.base, onSurface = colors.text, onBackground = colors.text)
     }
-    CompositionLocalProvider(LocalGlassColors provides colors, LocalWallpaperImage provides if (wallpaper == "photo") wallpaperImage else null) {
+    CompositionLocalProvider(
+        LocalGlassColors provides colors,
+        LocalGlassAccessibility provides accessibility,
+        LocalWallpaperImage provides if (wallpaper == "photo") wallpaperImage else null,
+    ) {
         MaterialTheme(colorScheme = scheme, content = content)
     }
 }

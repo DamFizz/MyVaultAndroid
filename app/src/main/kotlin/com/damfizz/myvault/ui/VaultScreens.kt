@@ -17,6 +17,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
@@ -153,12 +154,23 @@ internal fun MainScreen(vm: VaultViewModel) {
     LaunchedEffect(Unit) { vm.checkForUpdates(manual = false) }
     GlassScaffold(
         topBar = {
-            Row(Modifier.align(Alignment.CenterEnd), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (vm.tab == 0) GlassIconButton(Icons.Filled.Add, add, { chooseType = true })
-                GlassIconButton(Icons.Filled.Lock, lock, vm::lock)
+            if (vm.tab == 0) {
+                GlassSearchMorph(
+                    open = vm.searchOpen,
+                    onOpenChange = { o -> vm.searchOpen = o; if (!o) vm.query = "" },
+                    query = vm.query,
+                    onQueryChange = { vm.query = it },
+                    placeholder = stringResource(R.string.vault_search),
+                    modifier = Modifier.align(Alignment.CenterEnd).fillMaxWidth(),
+                ) {
+                    GlassIconButton(Icons.Filled.Add, add, { chooseType = true })
+                    GlassIconButton(Icons.Filled.Lock, lock, vm::lock)
+                }
+            } else {
+                GlassIconButton(Icons.Filled.Lock, lock, vm::lock, Modifier.align(Alignment.CenterEnd))
             }
         },
-        bottomBar = { GlassTabBar(tabs, vm.tab, { vm.tab = it }, Modifier.fillMaxWidth()) },
+        bottomBar = { GlassTabBar(tabs, vm.tab, { vm.tab = it; if (it != 0) { vm.searchOpen = false; vm.query = "" } }, Modifier.fillMaxWidth()) },
     ) { pad ->
         AnimatedContent(vm.tab, transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(120)) }, label = "tab", modifier = Modifier.fillMaxSize()) { tab ->
             when (tab) {
@@ -183,7 +195,7 @@ internal fun MainScreen(vm: VaultViewModel) {
 @Composable
 private fun VaultList(vm: VaultViewModel, pad: PaddingValues, favouritesOnly: Boolean) {
     val c = LocalGlassColors.current
-    var query by rememberSaveable { mutableStateOf("") }
+    val query = if (favouritesOnly) "" else vm.query
     var showViews by remember { mutableStateOf(false) }
     var showSort by remember { mutableStateOf(false) }
     var askEmpty by remember { mutableStateOf(false) }
@@ -213,7 +225,6 @@ private fun VaultList(vm: VaultViewModel, pad: PaddingValues, favouritesOnly: Bo
         } else {
             item { LargeTitle(if (favouritesOnly) stringResource(R.string.vault_favorites) else "MyVault", Modifier.padding(start = 6.dp, bottom = 12.dp)) }
         }
-        item { GlassTextField(query, { query = it }, stringResource(R.string.vault_search), leading = Icons.Filled.Search) }
         if (!home) {
             item {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 12.dp)) {
@@ -860,16 +871,19 @@ private fun VaultTile(
     onClick: () -> Unit,
 ) {
     val c = LocalGlassColors.current
-    val source = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-    GlassSurface(
+    val interaction = rememberGlassInteraction()
+    val shape = RoundedCornerShape(26.dp)
+    // Content, not navigation: a solid fill (Apple keeps glass for the floating controls layer),
+    // with a touch-located highlight instead of live blur, which also keeps scrolling cheap.
+    Box(
         modifier
             .height(112.dp)
-            .liquidPress(source, 0.94f)
-            .combinedClickable(interactionSource = source, indication = null, onLongClick = onLongClick, onClick = onClick),
-        shape = RoundedCornerShape(26.dp),
-        tint = if (dashed) c.glassTint.copy(alpha = c.glassTint.alpha * 0.6f) else c.glassTint,
-        refraction = 12.dp,
-        elevation = if (dashed) 4.dp else 10.dp,
+            .glassPress(interaction, onLongClick = onLongClick, onClick = onClick)
+            .pressScale(interaction)
+            .clip(shape)
+            .background(if (dashed) c.fill.copy(alpha = c.fill.alpha * 0.55f) else c.fill)
+            .then(if (dashed) Modifier.border(1.dp, c.accent.copy(alpha = 0.35f), shape) else Modifier)
+            .pressGlow(interaction, highlight = c.text.copy(alpha = if (c.dark) 0.16f else 0.10f)),
     ) {
         Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.SpaceBetween) {
             Row(verticalAlignment = Alignment.Top) {

@@ -265,6 +265,17 @@
     <string name="set_theme_dark">Gelap</string>
     <string name="set_theme_light">Cerah</string>
     <string name="set_theme_system">Sistem</string>
+    <string name="set_motion">Gerakan</string>
+    <string name="set_motion_reduced">Dikurangkan</string>
+    <string name="set_motion_full">Penuh</string>
+    <string name="set_reduce_transparency">Kurangkan ketelusan</string>
+    <string name="set_reduce_transparency_sub">Kaca lebih kabur, tanpa biasan</string>
+    <string name="set_high_contrast">Tingkatkan kontras</string>
+    <string name="welcome_name">Selamat datang, %1$s</string>
+    <string name="set_display_name">Nama di skrin kunci</string>
+    <string name="set_display_name_none">Tiada</string>
+    <string name="set_display_name_hint">cth. DamFizz</string>
+    <string name="set_display_name_sub">Dipaparkan sebagai "Selamat datang, nama" sebelum buka kunci. Disimpan di telefon ini sahaja, di luar vault yang disulitkan, jadi sesiapa yang memegang telefon boleh melihatnya.</string>
     <string name="set_accent">Warna aksen</string>
     <string name="set_language">Bahasa</string>
     <string name="set_language_system">Ikut telefon</string>

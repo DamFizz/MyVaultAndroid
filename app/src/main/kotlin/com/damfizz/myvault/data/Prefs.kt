@@ -54,6 +54,18 @@ class Prefs(context: Context) {
     fun updateWallpaper(v: String) { wallpaper = v; sp.edit().putString("wallpaper", v).apply() }
     fun bumpWallpaperVersion() { wallpaperVersion += 1; sp.edit().putInt("wallpaperVersion", wallpaperVersion).apply() }
 
+    /** Optional name for the lock-screen greeting. Stored on this device only, outside the vault
+     *  (it must be readable before unlocking), so it should not be anything secret. */
+    var displayName by mutableStateOf(sp.getString("displayName", "")!!); private set
+    fun updateDisplayName(v: String) { displayName = v.trim().take(40); sp.edit().putString("displayName", displayName).apply() }
+
+    /** Frostier, more opaque glass without refraction. */
+    var reduceTransparency by mutableStateOf(sp.getBoolean("reduceTransparency", false)); private set
+    /** Stronger outlines and more opaque glass. */
+    var highContrast by mutableStateOf(sp.getBoolean("highContrast", false)); private set
+    fun updateReduceTransparency(v: Boolean) { reduceTransparency = v; sp.edit().putBoolean("reduceTransparency", v).apply() }
+    fun updateHighContrast(v: Boolean) { highContrast = v; sp.edit().putBoolean("highContrast", v).apply() }
+
     fun updateAutoSync(v: Boolean) { autoSync = v; sp.edit().putBoolean("autoSync", v).apply() }
 
     fun updateTheme(v: String) { theme = v; sp.edit().putString("theme", v).apply() }

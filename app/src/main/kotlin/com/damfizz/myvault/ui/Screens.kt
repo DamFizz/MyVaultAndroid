@@ -16,6 +16,14 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.ui.unit.IntOffset
+import com.damfizz.myvault.ui.glass.LocalGlassAccessibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -119,10 +127,11 @@ import javax.crypto.Cipher
 
 @Composable
 fun AppRoot(vm: VaultViewModel) {
+    val rm = LocalGlassAccessibility.current.reduceMotion
     LiquidGlassRoot {
         AnimatedContent(
             targetState = vm.screen,
-            transitionSpec = { (fadeIn(tween(240)) + slideInVertically(tween(320)) { it / 28 }) togetherWith fadeOut(tween(140)) },
+            transitionSpec = { screenTransition(initialState, targetState, rm) },
             contentKey = { it::class },
             label = "screen",
             modifier = Modifier.fillMaxSize(),
@@ -148,6 +157,38 @@ fun AppRoot(vm: VaultViewModel) {
             if (n.undo != null) host.toast(n.message, undo, n.undo) else host.toast(n.message)
         }
         BusyOverlay(vm.busy, stringResource(R.string.busy_kdf))
+    }
+}
+
+/** How deep a screen sits in the navigation stack: deeper = pushed from the right. */
+private fun depth(s: Screen): Int = when (s) {
+    Screen.Welcome, Screen.Unlock -> 0
+    Screen.Create, Screen.Import, is Screen.SecondFactor -> 1
+    Screen.Vault -> 2
+    is Screen.Detail, Screen.Organize, Screen.BackupRestore, Screen.Sync -> 3
+    Screen.Editor -> 4
+}
+
+private fun isAuth(s: Screen) = s is Screen.Welcome || s is Screen.Unlock || s is Screen.Create || s is Screen.Import || s is Screen.SecondFactor
+
+/**
+ * Direction-aware screen motion: push from the right going deeper, pop back to the left, springs
+ * throughout so a fast back gesture mid-transition reverses cleanly. Locking is special: vault
+ * content leaves INSTANTLY (no fading copy of secrets lingers on screen after the vault locks).
+ */
+private fun AnimatedContentTransitionScope<Screen>.screenTransition(from: Screen, to: Screen, rm: Boolean): ContentTransform {
+    if (!isAuth(from) && isAuth(to)) {
+        return fadeIn(tween(220)) togetherWith fadeOut(snap())
+    }
+    if (rm) return fadeIn(tween(180)) togetherWith fadeOut(tween(120))
+    val d = depth(to) - depth(from)
+    val slide = spring<IntOffset>(dampingRatio = 0.9f, stiffness = 420f)
+    return when {
+        d > 0 -> (slideInHorizontally(slide) { it / 3 } + fadeIn(tween(200))) togetherWith
+            (slideOutHorizontally(slide) { -it / 8 } + fadeOut(tween(160)))
+        d < 0 -> (slideInHorizontally(slide) { -it / 8 } + fadeIn(tween(200))) togetherWith
+            (slideOutHorizontally(slide) { it / 3 } + fadeOut(tween(160)))
+        else -> (fadeIn(tween(220)) + slideInVertically(slide) { it / 28 }) togetherWith fadeOut(tween(140))
     }
 }
 
@@ -293,7 +334,13 @@ private fun UnlockScreen(vm: VaultViewModel) = AuthPage {
     Hero(Icons.Filled.Lock)
     Spacer(Modifier.height(6.dp))
     if (!recovery) {
-        LargeTitle(stringResource(R.string.unlock_title))
+        val name = vm.prefs.displayName
+        if (name.isNotBlank()) {
+            Footnote(stringResource(R.string.unlock_title).uppercase(), Modifier.padding(start = 2.dp))
+            LargeTitle(stringResource(R.string.welcome_name, name))
+        } else {
+            LargeTitle(stringResource(R.string.unlock_title))
+        }
         GlassTextField(pw, { pw = it }, stringResource(R.string.master_password), secret = true, onDone = ::submit)
         if (vm.needsSecretKey) {
             GlassTextField(sk, { sk = it.uppercase() }, stringResource(R.string.secret_key), mono = true)

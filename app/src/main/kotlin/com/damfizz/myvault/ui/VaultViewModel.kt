@@ -235,7 +235,13 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
         biometricOffer = offerPassword != null
     }
 
+    /** Vault search (shared by the top-bar search field and the list); cleared on lock. */
+    var query by mutableStateOf("")
+    var searchOpen by mutableStateOf(false)
+
     fun lock() {
+        query = ""
+        searchOpen = false
         offerPassword = null
         biometricOffer = false
         (screen as? Screen.SecondFactor)?.challenge?.cancel()

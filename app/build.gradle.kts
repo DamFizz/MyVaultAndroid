@@ -21,8 +21,8 @@ android {
         applicationId = "com.damfizz.myvault"
         minSdk = 26
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.2.2-alpha"
+        versionCode = 5
+        versionName = "0.2.3-alpha"
     }
 
     signingConfigs {
@@ -37,6 +37,14 @@ android {
     }
 
     buildTypes {
+        // Release code (optimised, not debuggable) signed with the debug key so it installs over a
+        // debug build and keeps its data: used only to measure frame timing on an emulator/device.
+        create("benchmark") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+            isDebuggable = false
+        }
         release {
             // Kept off for the first alpha: Bouncy Castle + kotlinx.serialization need careful R8 rules.
             isMinifyEnabled = false

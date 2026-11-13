@@ -73,9 +73,10 @@ import kotlinx.coroutines.launch
 @Composable
 fun Modifier.liquidPress(source: MutableInteractionSource, pressedScale: Float = 0.95f): Modifier {
     val pressed by source.collectIsPressedAsState()
+    val rm = LocalGlassAccessibility.current.reduceMotion
     val scale by animateFloatAsState(
         if (pressed) pressedScale else 1f,
-        spring(dampingRatio = if (pressed) 0.9f else 0.42f, stiffness = if (pressed) 900f else 420f),
+        spring(dampingRatio = if (pressed || rm) 0.9f else 0.42f, stiffness = if (pressed) 900f else 420f),
         label = "press",
     )
     return graphicsLayer { scaleX = scale; scaleY = scale }
@@ -130,7 +131,7 @@ fun GlassButton(
     icon: ImageVector? = null,
 ) {
     val c = LocalGlassColors.current
-    val source = remember { MutableInteractionSource() }
+    val interaction = rememberGlassInteraction(GlassMotion.FLEX_MEDIUM)
     val tint = when {
         prominent && destructive -> c.danger.copy(alpha = 0.82f)
         prominent -> c.accent.copy(alpha = if (c.dark) 0.62f else 0.82f)
@@ -143,13 +144,14 @@ fun GlassButton(
     }
     GlassSurface(
         modifier
-            .liquidPress(source)
             .graphicsLayer { alpha = if (enabled) 1f else 0.45f }
-            .clickable(interactionSource = source, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
+            .glassPress(interaction, enabled = enabled, onClick = onClick)
             .defaultMinSize(minHeight = 52.dp),
         shape = Capsule,
         tint = tint,
+        material = GlassMaterials.Regular,
         elevation = if (prominent) 14.dp else 8.dp,
+        interaction = interaction,
         contentAlignment = Alignment.Center,
     ) {
         Row(Modifier.padding(horizontal = 22.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -164,14 +166,14 @@ fun GlassButton(
 
 @Composable
 fun GlassIconButton(icon: ImageVector, description: String, onClick: () -> Unit, modifier: Modifier = Modifier, size: Dp = 46.dp, tint: Color = LocalGlassColors.current.text) {
-    val source = remember { MutableInteractionSource() }
+    val interaction = rememberGlassInteraction(GlassMotion.FLEX_SMALL)
     GlassSurface(
         modifier
             .size(size)
-            .liquidPress(source, 0.9f)
-            .clickable(interactionSource = source, indication = null, role = Role.Button, onClick = onClick)
+            .glassPress(interaction, onClick = onClick)
             .semantics { contentDescription = description },
         shape = Capsule,
+        interaction = interaction,
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, null, tint = tint, modifier = Modifier.size(22.dp))
@@ -315,7 +317,7 @@ fun GlassTextField(
 @Composable
 fun GlassToggle(checked: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
     val c = LocalGlassColors.current
-    val p by animateFloatAsState(if (checked) 1f else 0f, spring(dampingRatio = 0.62f, stiffness = 520f), label = "toggle")
+    val p by animateFloatAsState(if (checked) 1f else 0f, GlassMotion.small(LocalGlassAccessibility.current.reduceMotion), label = "toggle")
     val source = remember { MutableInteractionSource() }
     Box(
         modifier
@@ -360,10 +362,11 @@ fun FlowingSelector(
 ) {
     val left = remember { Animatable(selected.toFloat()) }
     val right = remember { Animatable(selected + 1f) }
+    val rm = LocalGlassAccessibility.current.reduceMotion
     LaunchedEffect(selected) {
         val forward = selected >= left.targetValue
-        val fast = spring<Float>(dampingRatio = 0.72f, stiffness = 520f)
-        val slow = spring<Float>(dampingRatio = 0.62f, stiffness = 190f)
+        val fast = spring<Float>(dampingRatio = if (rm) 1f else 0.72f, stiffness = 520f)
+        val slow = spring<Float>(dampingRatio = if (rm) 1f else 0.62f, stiffness = if (rm) 520f else 190f)
         launch { left.animateTo(selected.toFloat(), if (forward) slow else fast) }
         launch { right.animateTo(selected + 1f, if (forward) fast else slow) }
     }
@@ -393,23 +396,6 @@ fun FlowingSelector(
                         .clickable(interactionSource = source, indication = null, role = Role.Tab) { onSelect(i) },
                     contentAlignment = Alignment.Center,
                 ) { item(i, i == selected) }
-            }
-        }
-    }
-}
-
-class TabItem(val icon: ImageVector, val label: String)
-
-/** Floating glass tab bar; the content scrolls underneath and is blurred and refracted by it. */
-@Composable
-fun GlassTabBar(tabs: List<TabItem>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
-    val c = LocalGlassColors.current
-    GlassSurface(modifier.height(66.dp), shape = Capsule, blur = 24.dp, refraction = 16.dp, elevation = 18.dp) {
-        FlowingSelector(tabs.size, selected, onSelect, Modifier.fillMaxSize()) { i, sel ->
-            val color = if (sel) c.accent else c.text2
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                Icon(tabs[i].icon, null, tint = color, modifier = Modifier.size(23.dp))
-                Text(tabs[i].label, style = Type.caption, color = color, maxLines = 1)
             }
         }
     }

@@ -51,6 +51,13 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -143,7 +150,15 @@ fun GlassScaffold(
         Box(Modifier.fillMaxSize().backdropSource(behindBars)) {
             Wallpaper(Modifier.fillMaxSize().backdropSource(wall), animatedWallpaper)
             CompositionLocalProvider(LocalBackdrop provides wall) {
-                Box(Modifier.fillMaxSize().imePadding()) { content(padding) }
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .scrollEdgeEffect(
+                            top = if (topBar != null) top + 30.dp else 0.dp,
+                            bottom = if (bottomBar != null) bottom + 40.dp else 0.dp,
+                        )
+                        .imePadding(),
+                ) { content(padding) }
             }
         }
         CompositionLocalProvider(LocalBackdrop provides behindBars) {
@@ -158,6 +173,31 @@ fun GlassScaffold(
 }
 
 val TopBarHeight: Dp = 64.dp
+
+/**
+ * Scroll edge effect: content dissolves into the wallpaper where it passes under the floating bars,
+ * so the bars stay legible without a hard divider (Apple's "scroll edge effect", soft style).
+ */
+private fun Modifier.scrollEdgeEffect(top: Dp, bottom: Dp): Modifier =
+    if (top == 0.dp && bottom == 0.dp) this
+    else this
+        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+        .drawWithContent {
+            drawContent()
+            val t = top.toPx()
+            val b = bottom.toPx()
+            if (t > 0f) drawRect(
+                Brush.verticalGradient(0f to Color.Transparent, 0.55f to Color.Black.copy(alpha = 0.55f), 1f to Color.Black, startY = 0f, endY = t),
+                size = Size(size.width, t),
+                blendMode = BlendMode.DstIn,
+            )
+            if (b > 0f) drawRect(
+                Brush.verticalGradient(0f to Color.Black, 0.45f to Color.Black.copy(alpha = 0.55f), 1f to Color.Transparent, startY = size.height - b, endY = size.height),
+                topLeft = Offset(0f, size.height - b),
+                size = Size(size.width, b),
+                blendMode = BlendMode.DstIn,
+            )
+        }
 val BottomBarHeight: Dp = 96.dp
 
 // ------------------------------------------------------------------ sheet
@@ -167,7 +207,8 @@ val BottomBarHeight: Dp = 96.dp
 fun GlassSheet(visible: Boolean, onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
     GlassOverlay {
         val c = LocalGlassColors.current
-        val progress by animateFloatAsState(if (visible) 1f else 0f, spring(dampingRatio = 0.8f, stiffness = 330f), label = "sheet")
+        val rm = LocalGlassAccessibility.current.reduceMotion
+        val progress by animateFloatAsState(if (visible) 1f else 0f, GlassMotion.sheet(rm), label = "sheet")
         if (!visible && progress < 0.002f) return@GlassOverlay
         val scope = rememberCoroutineScope()
         val drag = remember { Animatable(0f) }
@@ -197,13 +238,13 @@ fun GlassSheet(visible: Boolean, onDismiss: () -> Unit, content: @Composable Col
                         Orientation.Vertical,
                         onDragStopped = { v ->
                             if (drag.value > height * 0.3f || v > 1400f) onDismiss()
-                            else drag.animateTo(0f, spring(dampingRatio = 0.6f, stiffness = 400f))
+                            else drag.animateTo(0f, GlassMotion.flexOut(rm), initialVelocity = v)
                         },
                     ),
                 shape = RoundedCornerShape(36.dp),
-                blur = 30.dp,
-                refraction = 18.dp,
-                elevation = 24.dp,
+                material = GlassMaterials.Thick,
+                // Materialise by bringing the lensing in as it rises, rather than fading.
+                presence = { progress },
             ) {
                 Column(
                     Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 20.dp),
@@ -232,7 +273,8 @@ fun GlassAlert(
 ) {
     GlassOverlay {
         val c = LocalGlassColors.current
-        val progress by animateFloatAsState(if (visible) 1f else 0f, spring(dampingRatio = 0.68f, stiffness = 420f), label = "alert")
+        val rm = LocalGlassAccessibility.current.reduceMotion
+        val progress by animateFloatAsState(if (visible) 1f else 0f, GlassMotion.lift(rm), label = "alert")
         if (!visible && progress < 0.002f) return@GlassOverlay
         if (visible) BackHandler(onBack = onDismiss)
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -245,13 +287,14 @@ fun GlassAlert(
                     .padding(32.dp)
                     .widthIn(max = 340.dp)
                     .graphicsLayer {
-                        val s = 0.85f + 0.15f * progress
+                        // Swells out of the screen like a drop; lensing ramps in with it.
+                        val s = 0.86f + 0.14f * progress
                         scaleX = s; scaleY = s
-                        alpha = progress.coerceIn(0f, 1f)
+                        alpha = (progress * 2.5f).coerceIn(0f, 1f)
                     },
                 shape = RoundedCornerShape(32.dp),
-                blur = 30.dp,
-                elevation = 24.dp,
+                material = GlassMaterials.Thick,
+                presence = { progress },
             ) {
                 Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(title, style = Type.headline, color = c.text)
