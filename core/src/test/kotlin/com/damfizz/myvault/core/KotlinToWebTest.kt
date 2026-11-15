@@ -55,6 +55,11 @@ class KotlinToWebTest {
         session.saveItems(listOf(login, note, gone))
         session.purgeItems(listOf(gone.id))
         session.saveSettings { it.copy(trashRetentionDays = 7) }
+        // My Space records (kinds the web app does not know yet): must open and survive untouched.
+        session.saveSpaceEntry(
+            SpaceEntry(id = "space-android", bankId = "maybank", bankName = "Maybank", holder = "Ahmad", accountNumber = "000123456789", qrAssetId = "asset-android", createdAt = now, updatedAt = now),
+            SpaceAsset.of("asset-android", "space-android", "image/png", 2, 2, byteArrayOf(1, 2, 3, 4), now),
+        )
 
         val recoveryKey = access.createRecoveryKey(session, password)
         val secret = Totp.generateSecret()
@@ -160,6 +165,10 @@ class KotlinToWebTest {
 
         val now = clock.now()
         Items.save(session, VaultItem.empty(ItemType.LOGIN, "from-android-sync", now).copy(title = "Ditambah oleh sync Android", password = "sync-✓"), now)
+        session.saveSpaceEntry(
+            SpaceEntry(id = "space-from-android-sync", bankName = "CIMB Bank", accountNumber = "0700112233", qrAssetId = "asset-from-android-sync", createdAt = now, updatedAt = now),
+            SpaceAsset.of("asset-from-android-sync", "space-from-android-sync", "image/png", 2, 2, byteArrayOf(9, 8, 7), now),
+        )
         Items.save(session, session.getItem("item-wifi")!!.copy(notes = "disunting oleh enjin sync Android"), now)
         session.purgeItems(listOf("item-license"))
         val r = SyncEngine(session, remote, clock).sync()

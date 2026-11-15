@@ -57,6 +57,9 @@ sealed interface Screen {
     data object BackupRestore : Screen
     data object Sync : Screen
     data object Settings : Screen
+    data class SpaceDetail(val id: String) : Screen
+    /** [id] null = new entry of [type]. */
+    data class SpaceEditor(val id: String?, val type: String = com.damfizz.myvault.core.SpaceType.BANK) : Screen
 }
 
 /** One opened backup waiting for confirmation before it replaces the vault on this phone. */
@@ -246,6 +249,9 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
 
     fun lock() {
         query = ""
+        spaceQuery = ""
+        // Share copies older than 2 minutes are removed (newer ones may still be read by the app they went to).
+        runCatching { com.damfizz.myvault.data.SpaceMedia.cleanup(getApplication(), 2 * 60_000L) }
         searchOpen = false
         offerPassword = null
         biometricOffer = false
@@ -270,9 +276,21 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
         backgroundAt = SystemClock.elapsedRealtime()
     }
 
+    /** Set just before opening the system photo picker, so choosing a QR does not lock the vault. */
+    private var externalGraceUntil = 0L
+
+    fun expectExternalActivity(ms: Long = 180_000) {
+        externalGraceUntil = SystemClock.elapsedRealtime() + ms
+    }
+
     fun onForeground() {
         val at = backgroundAt ?: return
         backgroundAt = null
+        if (SystemClock.elapsedRealtime() <= externalGraceUntil) {
+            externalGraceUntil = 0
+            lastInteraction = SystemClock.elapsedRealtime()
+            return
+        }
         val secs = prefs.lockOnHiddenSeconds
         if (session != null && secs >= 0 && SystemClock.elapsedRealtime() - at >= secs * 1000L) lock()
         lastInteraction = SystemClock.elapsedRealtime()
@@ -285,6 +303,8 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     init {
+        // Leftover share copies from a previous run.
+        runCatching { com.damfizz.myvault.data.SpaceMedia.cleanup(app, 0) }
         // Inactivity lock (web: autoLockMinutes). Checked every 15 s while the app is alive.
         viewModelScope.launch {
             while (true) {
@@ -435,6 +455,58 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
         private set
 
     private fun now() = System.currentTimeMillis()
+
+    // ------------------------------------------------------------------ My Space
+
+    var spaceQuery by mutableStateOf("")
+
+    fun spaceEntries(): List<com.damfizz.myvault.core.SpaceEntry> =
+        com.damfizz.myvault.core.Space.sorted(session?.spaceEntries().orEmpty())
+    fun spaceEntry(id: String) = session?.spaceEntry(id)
+    fun spaceAsset(id: String?) = session?.asset(id)
+
+    /** Recently used entries (newest first), from the device-only usage log. */
+    fun recentSpace(limit: Int = 4): List<com.damfizz.myvault.core.SpaceEntry> {
+        val u = usage()
+        return session?.spaceEntries().orEmpty().filter { it.id in u }.sortedByDescending { u[it.id] }.take(limit)
+    }
+
+    /**
+     * Save an entry. [image] = a newly picked QR (stored in the same write as the entry);
+     * [removeImage] = drop the current QR without a replacement.
+     */
+    fun saveSpace(entry: com.damfizz.myvault.core.SpaceEntry, image: com.damfizz.myvault.data.SpaceMedia.Imported?, removeImage: Boolean): String? {
+        val s = session ?: return null
+        val t = now()
+        val previous = s.spaceEntry(entry.id)
+        val old = previous?.qrAssetId
+        val asset = image?.let {
+            com.damfizz.myvault.core.SpaceAsset.of(Encoding.randomId(), entry.id, it.mime, it.width, it.height, it.bytes, t)
+        }
+        val next = entry.copy(
+            qrAssetId = when { asset != null -> asset.id; removeImage -> null; else -> old ?: entry.qrAssetId },
+            createdAt = if (entry.createdAt == 0L) t else entry.createdAt,
+            updatedAt = t,
+        )
+        s.saveSpaceEntry(next, asset, dropAssetId = if (asset != null || removeImage) old else null)
+        revision++
+        notice = Notice(str(R.string.space_saved)); noticeId++
+        return next.id
+    }
+
+    fun toggleSpaceFavorite(id: String) {
+        val s = session ?: return
+        val e = s.spaceEntry(id) ?: return
+        s.saveSpaceEntry(e.copy(favorite = !e.favorite, updatedAt = now()))
+        revision++
+    }
+
+    fun deleteSpace(id: String) {
+        val s = session ?: return
+        s.deleteSpaceEntry(id)
+        revision++
+        notice = Notice(str(R.string.space_deleted)); noticeId++
+    }
 
     private fun notify(message: Int, before: List<VaultItem>? = null) {
         val s = session

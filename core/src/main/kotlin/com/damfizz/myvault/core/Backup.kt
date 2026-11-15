@@ -186,6 +186,24 @@ object Backup {
         }
         if (saveCollections.isNotEmpty()) session.saveCollections(saveCollections)
         if (saveItems.isNotEmpty()) session.saveItems(saveItems)
+
+        // My Space: images first (same id = same image), then entries with the same copy rules as items.
+        val assets = payloads.mapNotNull { it.asset() }.associateBy { it.id }
+        val existingEntries = session.spaceEntries().associateBy { it.id }
+        fun comparableEntry(e: SpaceEntry) = JsonObject(e.toJson() - "updatedAt")
+        for (p in payloads) {
+            val e = p.spaceEntry() ?: continue
+            val asset = e.qrAssetId?.let { assets[it] }?.takeIf { session.asset(it.id) == null }
+            val existing = existingEntries[e.id]
+            when {
+                existing == null -> { session.saveSpaceEntry(e.copy(updatedAt = now), asset); added++ }
+                comparableEntry(existing) == comparableEntry(e) -> skipped++
+                else -> {
+                    session.saveSpaceEntry(e.copy(id = Encoding.randomId(), title = "${e.displayName} (restored copy)", updatedAt = now), asset)
+                    copies++
+                }
+            }
+        }
         return MergeResult(added, copies, skipped, saveCollections.size)
     }
 

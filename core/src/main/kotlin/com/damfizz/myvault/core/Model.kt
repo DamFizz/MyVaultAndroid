@@ -191,6 +191,8 @@ class RecordPayload(val json: JsonObject) {
     fun item(): VaultItem? = if (kind == "item") (json["item"] as? JsonObject)?.let(VaultItem::fromJson) else null
     fun collection(): VaultCollection? = if (kind == "collection") (json["collection"] as? JsonObject)?.let(VaultCollection::fromJson) else null
     fun settings(): VaultSettings? = if (kind == "settings") (json["settings"] as? JsonObject)?.let(VaultSettings::fromJson) else null
+    fun spaceEntry(): SpaceEntry? = if (kind == "space") (json["space"] as? JsonObject)?.let { runCatching { SpaceEntry.fromJson(it) }.getOrNull() } else null
+    fun asset(): SpaceAsset? = if (kind == "asset") (json["asset"] as? JsonObject)?.let { runCatching { SpaceAsset.fromJson(it) }.getOrNull() } else null
 
     override fun equals(other: Any?) = other is RecordPayload && other.json == json
     override fun hashCode() = json.hashCode()
@@ -209,6 +211,8 @@ class RecordPayload(val json: JsonObject) {
         fun item(item: VaultItem, updatedAt: Long, device: String) = make("item", "item", item.toJson(), updatedAt, device)
         fun collection(c: VaultCollection, updatedAt: Long, device: String) = make("collection", "collection", c.toJson(), updatedAt, device)
         fun settings(s: VaultSettings, updatedAt: Long, device: String) = make("settings", "settings", s.toJson(), updatedAt, device)
+        fun space(e: SpaceEntry, updatedAt: Long, device: String) = make("space", "space", e.toJson(), updatedAt, device)
+        fun asset(a: SpaceAsset, updatedAt: Long, device: String) = make("asset", "asset", a.toJson(), updatedAt, device)
         fun tombstone(updatedAt: Long, device: String) = make("tombstone", null, null, updatedAt, device)
     }
 }

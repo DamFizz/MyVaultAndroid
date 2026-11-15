@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Only the downloaded update APK is shared, and only with the system installer. -->
+<!-- Shared through this non-exported provider, one read grant at a time:
+     the downloaded update APK (with the system installer) and, after the user taps Share in
+     My Space, a temporary copy of a payment QR / payment card (with the app they choose). -->
 <paths>
     <cache-path name="updates" path="updates/" />
+    <cache-path name="share" path="share/" />
 </paths>

@@ -228,6 +228,16 @@ class SyncEngine(private val session: VaultSession, private val remote: RemoteSt
                     id = Encoding.randomId(), at = now, kind = "item", title = wi.title, keptId = c.id, copyId = copyId,
                     message = "Edited on two devices at the same time. The newest version was kept and the version from “${loser.device}” was saved as a conflict copy.",
                 )
+            } else if (winner.spaceEntry() != null && loser.spaceEntry() != null) {
+                val ws = winner.spaceEntry()!!
+                val ls = loser.spaceEntry()!!
+                val copyId = Encoding.randomId()
+                val copy = ls.copy(id = copyId, title = "${ls.displayName} (conflict copy)", updatedAt = now)
+                rewrites += Triple(copyId, 1L, RecordPayload.space(copy, now, loser.device))
+                notices += ConflictNotice(
+                    id = Encoding.randomId(), at = now, kind = "space", title = ws.displayName, keptId = c.id, copyId = copyId,
+                    message = "Edited on two devices at the same time. The newest version was kept and the version from “${loser.device}” was saved as a conflict copy.",
+                )
             } else if (wc != null && lc != null && wc.name != lc.name) {
                 notices += ConflictNotice(
                     id = Encoding.randomId(), at = now, kind = "collection", title = wc.name, keptId = c.id,

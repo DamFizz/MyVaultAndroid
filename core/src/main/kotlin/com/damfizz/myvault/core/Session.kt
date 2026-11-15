@@ -127,6 +127,45 @@ class VaultSession private constructor(
     @Synchronized
     fun getItem(id: String): VaultItem? = decrypted[id]?.payload?.item()
 
+    // ------------------------------------------------------------------ My Space
+
+    @Synchronized
+    fun spaceEntries(): List<SpaceEntry> = decrypted.values.mapNotNull { it.payload.spaceEntry() }
+    @Synchronized
+    fun spaceEntry(id: String): SpaceEntry? = decrypted[id]?.payload?.spaceEntry()
+    @Synchronized
+    fun asset(id: String?): SpaceAsset? = id?.let { decrypted[it]?.payload?.asset() }
+
+    /**
+     * Save an entry, optionally with a new QR image, in ONE write: the entry never points at an image
+     * that was not stored. A replaced or removed image is tombstoned in the same write.
+     */
+    @Synchronized
+    fun saveSpaceEntry(entry: SpaceEntry, newAsset: SpaceAsset? = null, dropAssetId: String? = null) {
+        val now = clock.now()
+        val entries = mutableListOf<Pair<String, RecordPayload>>()
+        if (newAsset != null) entries += newAsset.id to RecordPayload.asset(newAsset, now, device.name)
+        entries += entry.id to RecordPayload.space(entry, now, device.name)
+        if (
+            dropAssetId != null && dropAssetId != newAsset?.id && dropAssetId != entry.qrAssetId && decrypted[dropAssetId]?.payload?.kind == "asset" &&
+            spaceEntries().none { it.id != entry.id && it.qrAssetId == dropAssetId }
+        ) {
+            entries += dropAssetId to RecordPayload.tombstone(now, device.name)
+        }
+        writePayloads(entries)
+    }
+
+    /** Delete an entry and its QR image (tombstones, so the deletion syncs). */
+    @Synchronized
+    fun deleteSpaceEntry(id: String) {
+        val e = spaceEntry(id) ?: return
+        val now = clock.now()
+        val ids = listOfNotNull(id, e.qrAssetId?.takeIf { decrypted[it]?.payload?.kind == "asset" && spaceEntries().none { o -> o.id != id && o.qrAssetId == it } })
+        writePayloads(ids.map { it to RecordPayload.tombstone(now, device.name) })
+        val secrets = getDeviceSecrets()
+        if (id in secrets.usage) setDeviceSecrets(secrets.copy(usage = secrets.usage - id))
+    }
+
     // ------------------------------------------------------------------ writes
 
     @Synchronized

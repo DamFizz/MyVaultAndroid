@@ -149,12 +149,14 @@ internal fun CheckMark(on: Boolean) {
 internal fun MainScreen(vm: VaultViewModel) {
     val tabs = listOf(
         TabItem(Icons.Filled.Shield, stringResource(R.string.tab_vault)),
+        TabItem(Icons.Filled.AccountBalanceWallet, stringResource(R.string.tab_space)),
         TabItem(Icons.Filled.Password, stringResource(R.string.tab_generator)),
         TabItem(Icons.Filled.HealthAndSafety, stringResource(R.string.tab_security)),
     )
     val add = stringResource(R.string.action_add)
     var chooseType by remember { mutableStateOf(false) }
     var showProfile by remember { mutableStateOf(false) }
+    var spaceAdd by remember { mutableStateOf(false) }
     if (vm.tab > tabs.lastIndex) vm.tab = 0
     LaunchedEffect(Unit) { vm.subScreenReturn = Screen.Vault }
     AutoSyncOnUnlock(vm)
@@ -162,33 +164,38 @@ internal fun MainScreen(vm: VaultViewModel) {
     LaunchedEffect(Unit) { vm.checkForUpdates(manual = false) }
     GlassScaffold(
         topBar = {
-            if (vm.tab == 0) {
+            if (vm.tab == 0 || vm.tab == 1) {
+                val space = vm.tab == 1
+                key(vm.tab) {
                 GlassSearchMorph(
                     open = vm.searchOpen,
-                    onOpenChange = { o -> vm.searchOpen = o; if (!o) vm.query = "" },
-                    query = vm.query,
-                    onQueryChange = { vm.query = it },
-                    placeholder = stringResource(R.string.vault_search),
+                    onOpenChange = { o -> vm.searchOpen = o; if (!o) { vm.query = ""; vm.spaceQuery = "" } },
+                    query = if (space) vm.spaceQuery else vm.query,
+                    onQueryChange = { if (space) vm.spaceQuery = it else vm.query = it },
+                    placeholder = stringResource(if (space) R.string.space_search else R.string.vault_search),
                     modifier = Modifier.align(Alignment.CenterEnd).fillMaxWidth(),
                 ) {
-                    GlassIconButton(Icons.Filled.Add, add, { chooseType = true })
+                    GlassIconButton(Icons.Filled.Add, add, { if (space) spaceAdd = true else chooseType = true })
                     ProfileButton(vm, onClick = { showProfile = true })
+                }
                 }
             } else {
                 ProfileButton(vm, onClick = { showProfile = true }, modifier = Modifier.align(Alignment.CenterEnd))
             }
         },
-        bottomBar = { GlassTabBar(tabs, vm.tab, { vm.tab = it; if (it != 0) { vm.searchOpen = false; vm.query = "" } }, Modifier.fillMaxWidth()) },
+        bottomBar = { GlassTabBar(tabs, vm.tab, { if (it != vm.tab) { vm.searchOpen = false; vm.query = ""; vm.spaceQuery = "" }; vm.tab = it }, Modifier.fillMaxWidth()) },
     ) { pad ->
         AnimatedContent(vm.tab, transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(120)) }, label = "tab", modifier = Modifier.fillMaxSize()) { tab ->
             when (tab) {
                 0 -> VaultList(vm, pad, favouritesOnly = false)
-                1 -> GeneratorTab(vm, pad)
+                1 -> SpaceTab(vm, pad)
+                2 -> GeneratorTab(vm, pad)
                 else -> SecurityTab(vm, pad)
             }
         }
     }
     ProfileSheet(vm, showProfile) { showProfile = false }
+    SpaceAddSheet(vm, spaceAdd) { spaceAdd = false }
     GlassSheet(visible = chooseType, onDismiss = { chooseType = false }) {
         Text(stringResource(R.string.item_new_title), style = Type.headline, color = LocalGlassColors.current.text)
         InsetGroup {
@@ -348,7 +355,7 @@ private fun VaultList(vm: VaultViewModel, pad: PaddingValues, favouritesOnly: Bo
                                 stringResource(R.string.dash_security, report.score),
                                 subtitle = stringResource(R.string.dash_security_sub, report.weak.size, report.reused.sumOf { it.size }),
                                 leading = { IconTile(Icons.Filled.HealthAndSafety, 34.dp) },
-                                onClick = { vm.tab = 2 },
+                                onClick = { vm.tab = 3 },
                             ) { Icon(Icons.Filled.ChevronRight, null, tint = c.text3, modifier = Modifier.size(22.dp)) }
                         }
                         if (due) {
@@ -499,7 +506,7 @@ private fun VaultList(vm: VaultViewModel, pad: PaddingValues, favouritesOnly: Bo
 }
 
 @Composable
-private fun IconChip(icon: ImageVector, label: String, selected: Boolean, onClick: () -> Unit) {
+internal fun IconChip(icon: ImageVector, label: String, selected: Boolean, onClick: () -> Unit) {
     val c = LocalGlassColors.current
     val source = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     Row(

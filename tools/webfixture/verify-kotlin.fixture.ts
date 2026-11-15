@@ -155,6 +155,10 @@ describe('sync round trip: web device ↔ Android sync engine on the same cloud 
     expect(session.getItem('item-wifi')?.notes).toBe('disunting oleh enjin sync Android');
     expect(session.getItem('item-license')).toBeUndefined();
     expect((session.getItem('item-login') as any).futureField).toEqual({ nested: [1, 2, 3], flag: true });
+    // My Space records written by Android are decrypted and kept (the web just does not show them yet).
+    const kinds = new Map(session.allDecrypted().map((d) => [d.record.id, (d.payload as any).kind]));
+    expect(kinds.get('space-from-android-sync')).toBe('space');
+    expect(kinds.get('asset-from-android-sync')).toBe('asset');
 
     // Nothing left to do; then a web edit goes back up and the file stays valid.
     const again = await new SyncEngine(session, remote as unknown as RemoteStore).sync();

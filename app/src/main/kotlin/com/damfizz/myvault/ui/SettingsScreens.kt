@@ -115,7 +115,7 @@ private fun <T> OptionSheet(visible: Boolean, title: String, options: List<Pair<
 }
 
 @Composable
-private fun ValueRow(title: String, value: String, icon: ImageVector? = null, onClick: () -> Unit) {
+internal fun ValueRow(title: String, value: String, icon: ImageVector? = null, onClick: () -> Unit) {
     val c = LocalGlassColors.current
     ListRow(title, leading = icon?.let { { IconTile(it, 34.dp) } }, onClick = onClick) {
         Text(value, style = Type.callout, color = c.text2, maxLines = 1)
