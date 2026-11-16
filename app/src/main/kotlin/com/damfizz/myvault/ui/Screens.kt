@@ -150,7 +150,7 @@ fun AppRoot(vm: VaultViewModel) {
                 Screen.Sync -> SyncScreen(vm)
                 Screen.Settings -> SettingsScreen(vm)
                 is Screen.SpaceDetail -> SpaceDetailScreen(vm, s.id)
-                is Screen.SpaceEditor -> SpaceEditorScreen(vm, s.id, s.type)
+                is Screen.SpaceEditor -> SpaceEditorScreen(vm, s.id, s.type, s.owner)
             }
         }
         val host = LocalOverlayHost.current

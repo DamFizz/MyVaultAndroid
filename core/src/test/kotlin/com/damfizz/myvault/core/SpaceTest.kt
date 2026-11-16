@@ -42,6 +42,17 @@ class SpaceTest {
     }
 
     @Test
+    fun `entries saved before the owner field are the user's own, someone else's are named after the person`() {
+        val old = SpaceEntry.fromJson(bank("b1").toJson().let { kotlinx.serialization.json.JsonObject(it - "owner") })
+        assertTrue(old.isMine)
+        val friend = bank("f1").copy(title = "", owner = SpaceOwner.OTHER, holder = "Ali bin Abu")
+        val back = SpaceEntry.fromJson(friend.toJson())
+        assertFalse(back.isMine)
+        assertEquals("Ali bin Abu", back.displayName)
+        assertEquals("Maybank", bank("m1").copy(title = "").displayName)
+    }
+
+    @Test
     fun `share text contains only what was chosen and never notes`() {
         val e = bank("b1")
         assertEquals("Bank: Maybank\nAccount holder: Ahmad\nAccount number: 000123456789", Space.shareText(e))

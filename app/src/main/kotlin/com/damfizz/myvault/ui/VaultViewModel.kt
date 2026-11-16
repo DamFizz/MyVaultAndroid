@@ -59,7 +59,11 @@ sealed interface Screen {
     data object Settings : Screen
     data class SpaceDetail(val id: String) : Screen
     /** [id] null = new entry of [type]. */
-    data class SpaceEditor(val id: String?, val type: String = com.damfizz.myvault.core.SpaceType.BANK) : Screen
+    data class SpaceEditor(
+        val id: String?,
+        val type: String = com.damfizz.myvault.core.SpaceType.BANK,
+        val owner: String = com.damfizz.myvault.core.SpaceOwner.ME,
+    ) : Screen
 }
 
 /** One opened backup waiting for confirmation before it replaces the vault on this phone. */
@@ -459,6 +463,8 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
     // ------------------------------------------------------------------ My Space
 
     var spaceQuery by mutableStateOf("")
+    /** My Space shows the user's own entries (0) or other people's (1). */
+    var spaceSegment by mutableStateOf(0)
 
     fun spaceEntries(): List<com.damfizz.myvault.core.SpaceEntry> =
         com.damfizz.myvault.core.Space.sorted(session?.spaceEntries().orEmpty())

@@ -595,4 +595,18 @@
     <string name="space_card_hint">One image with the bank, holder, account number and your original QR. Works in any app that accepts pictures.</string>
     <string name="space_preview">PREVIEW</string>
     <string name="space_keep_editing">Keep editing</string>
+    <string name="space_seg_mine">Mine (%1$d)</string>
+    <string name="space_seg_others">Others (%1$d)</string>
+    <string name="space_people">People</string>
+    <string name="space_owner_mine">Mine</string>
+    <string name="space_owner_other">Someone else</string>
+    <string name="space_someone_else">Someone else\'s</string>
+    <string name="space_add_other_bank">Add someone\'s account</string>
+    <string name="space_add_other_bank_sub">A friend\'s or family member\'s account, to pay them</string>
+    <string name="space_add_other_qr">Add someone\'s QR</string>
+    <string name="space_add_other_qr_sub">A payment QR someone gave you</string>
+    <string name="space_other_name">Their name (as on the account)</string>
+    <string name="space_other_label">Label (e.g. Ali – rent)</string>
+    <string name="space_others_empty_title">No one saved yet</string>
+    <string name="space_others_empty_body">Save the account numbers and QR codes of people you pay often. They stay separate from your own.</string>
 </resources>

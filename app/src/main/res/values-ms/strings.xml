@@ -593,4 +593,18 @@
     <string name="space_card_hint">Satu imej dengan bank, pemegang, nombor akaun dan QR asal anda. Berfungsi dalam mana-mana aplikasi yang menerima gambar.</string>
     <string name="space_preview">PRATONTON</string>
     <string name="space_keep_editing">Terus sunting</string>
+    <string name="space_seg_mine">Saya (%1$d)</string>
+    <string name="space_seg_others">Orang lain (%1$d)</string>
+    <string name="space_people">Orang</string>
+    <string name="space_owner_mine">Saya</string>
+    <string name="space_owner_other">Orang lain</string>
+    <string name="space_someone_else">Milik orang lain</string>
+    <string name="space_add_other_bank">Tambah akaun orang lain</string>
+    <string name="space_add_other_bank_sub">Akaun kawan atau keluarga, untuk bayar mereka</string>
+    <string name="space_add_other_qr">Tambah QR orang lain</string>
+    <string name="space_add_other_qr_sub">QR pembayaran yang diberi oleh orang lain</string>
+    <string name="space_other_name">Nama mereka (seperti dalam akaun)</string>
+    <string name="space_other_label">Label (cth. Ali – sewa)</string>
+    <string name="space_others_empty_title">Belum ada sesiapa</string>
+    <string name="space_others_empty_body">Simpan nombor akaun dan QR orang yang selalu anda bayar. Ia diasingkan daripada akaun anda sendiri.</string>
 </resources>

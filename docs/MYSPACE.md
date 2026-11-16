@@ -15,6 +15,15 @@ never asks for online-banking logins.
   - You can save several accounts from the same bank.
   - An account can have a number, a QR, or both.
 - **Save a payment QR on its own**, for example a DuitNow QR with no account number.
+- **Keep other people's details separate (Mine / Others).**
+  - Save a friend's or family member's account number or QR to pay them. It goes under *Others*,
+    never mixed with your own accounts.
+  - Their cards show the person's initials on a ring instead of a bank badge, and the list is
+    alphabetical by name.
+  - You can switch an entry between *Mine* and *Someone else* in the editor at any time.
+  - Search looks through both lists.
+  - Entries saved before this option existed count as *Mine*. They are stored with an optional
+    `owner` field: absent means yours, `"other"` means someone else's.
 - **Import a QR** with the Android Photo Picker. MyVault sees only the photo you choose and asks
   for no storage permission.
   - **QR check:** MyVault checks whether a QR code can be read from the image and warns you if

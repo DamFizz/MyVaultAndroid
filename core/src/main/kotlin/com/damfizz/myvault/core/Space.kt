@@ -15,6 +15,13 @@ import java.util.Base64
  * and back up exactly like items. Older clients (and the web app today) ignore record kinds they do
  * not know, but keep them in the vault and the sync file.
  */
+/** Whose details these are. Absent = the user's own (every entry saved before this field existed). */
+object SpaceOwner {
+    const val ME = "me"
+    /** Someone else's account or QR, kept to pay or send to them. */
+    const val OTHER = "other"
+}
+
 object SpaceType {
     /** Bank account: number and/or an attached payment QR. */
     const val BANK = "bank"
@@ -46,14 +53,21 @@ data class SpaceEntry(
     /** Id of the [SpaceAsset] record with the payment QR, if any. */
     val qrAssetId: String? = null,
     val order: Int = 0,
+    /** [SpaceOwner.ME] (default) or [SpaceOwner.OTHER]. */
+    val owner: String? = null,
     val createdAt: Long = 0,
     val updatedAt: Long = 0,
     @Transient val raw: JsonObject? = null,
 ) {
     fun toJson(): JsonObject = VaultJson.encodePreserving(serializer(), this, raw)
 
-    /** What the card shows as its name. */
-    val displayName: String get() = title.ifBlank { bankName.orEmpty() }.ifBlank { if (type == SpaceType.QR) "Payment QR" else "Bank account" }
+    val isMine: Boolean get() = owner != SpaceOwner.OTHER
+
+    /** What the card shows as its name. Someone else's entry is named after the person first. */
+    val displayName: String
+        get() = title
+            .ifBlank { if (isMine) bankName.orEmpty() else holder.orEmpty().ifBlank { bankName.orEmpty() } }
+            .ifBlank { if (type == SpaceType.QR) "Payment QR" else "Bank account" }
 
     companion object {
         fun fromJson(obj: JsonObject): SpaceEntry = VaultJson.sparse.decodeFromJsonElement(serializer(), obj).copy(raw = obj)

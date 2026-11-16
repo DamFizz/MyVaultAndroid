@@ -60,6 +60,7 @@ import com.damfizz.myvault.core.Banks
 import com.damfizz.myvault.core.Space
 import com.damfizz.myvault.core.SpaceAsset
 import com.damfizz.myvault.core.SpaceEntry
+import com.damfizz.myvault.core.SpaceOwner
 import com.damfizz.myvault.core.SpaceType
 import com.damfizz.myvault.data.SpaceMedia
 import com.damfizz.myvault.ui.glass.*
@@ -80,9 +81,26 @@ internal fun spaceColor(e: SpaceEntry): Color = parseHex(e.color) ?: parseHex(Sp
 /** Share modes, in the order of the selector. */
 internal object ShareMode { const val NUMBER = 0; const val QR = 1; const val BOTH = 2 }
 
-/** Generic round badge with the bank's short letters (never a logo). */
+/** Up to two initials of a person's name ("Ali bin Abu" -> "AA"). */
+private fun initials(name: String): String =
+    name.split(' ', '-', '.').filter { it.isNotBlank() && it.lowercase() !in setOf("bin", "binti", "bt", "b", "a/l", "a/p") }
+        .take(2).joinToString("") { it.first().uppercase() }.ifEmpty { "?" }
+
+/**
+ * Round badge. Own entries: the bank's short letters, or a QR glyph (never a logo).
+ * Someone else's: the person's initials on a ring, so they never look like your own accounts.
+ */
 @Composable
 private fun BankBadge(e: SpaceEntry, size: Dp) {
+    if (!e.isMine) {
+        Box(
+            Modifier.size(size).clip(CircleShape).background(spaceColor(e).copy(alpha = 0.22f)).border(2.dp, spaceColor(e), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(initials(e.holder?.takeIf { it.isNotBlank() } ?: e.displayName), color = LocalGlassColors.current.text, fontWeight = FontWeight.Bold, fontSize = (size.value * 0.34f).sp, maxLines = 1)
+        }
+        return
+    }
     Box(Modifier.size(size).clip(CircleShape).background(spaceColor(e)), contentAlignment = Alignment.Center) {
         if (e.type == SpaceType.QR) {
             Icon(Icons.Filled.QrCode2, null, tint = Color.White, modifier = Modifier.size(size * 0.52f))
@@ -166,10 +184,15 @@ internal fun SpaceTab(vm: VaultViewModel, pad: PaddingValues) {
     val context = LocalContext.current
     val host = LocalOverlayHost.current
     val rev = vm.revision
-    val all = remember(rev) { vm.spaceEntries() }
+    val everything = remember(rev) { vm.spaceEntries() }
+    val mineCount = everything.count { it.isMine }
+    val othersCount = everything.size - mineCount
+    val others = vm.spaceSegment == 1
+    val all = everything.filter { it.isMine != others }
     val query = vm.spaceQuery
-    val shown = remember(all, query) { Space.search(all, query) }
-    val recent = remember(rev) { vm.recentSpace() }
+    // Search looks through both your own entries and other people's.
+    val shown = remember(everything, query) { Space.search(everything, query) }
+    val recent = remember(rev, others) { vm.recentSpace(8).filter { it.isMine != others }.take(4) }
     var actionsFor by remember { mutableStateOf<String?>(null) }
     var shareFor by remember { mutableStateOf<Pair<String, Int>?>(null) }
     var qrFor by remember { mutableStateOf<String?>(null) }
@@ -185,7 +208,21 @@ internal fun SpaceTab(vm: VaultViewModel, pad: PaddingValues) {
                 Footnote(stringResource(R.string.space_tagline), color = c.text2)
             }
         }
-        if (all.isEmpty()) {
+        if (everything.isNotEmpty() && query.isBlank()) {
+            item {
+                Box(Modifier.fillMaxWidth().height(44.dp).clip(Capsule).background(c.fill)) {
+                    FlowingSelector(2, vm.spaceSegment, { vm.spaceSegment = it }, Modifier.fillMaxSize(), pillColor = c.accent) { i, sel ->
+                        Text(
+                            if (i == 0) stringResource(R.string.space_seg_mine, mineCount) else stringResource(R.string.space_seg_others, othersCount),
+                            style = Type.footnote.copy(fontWeight = FontWeight.SemiBold),
+                            color = if (sel) c.onAccent else c.text,
+                            maxLines = 1,
+                        )
+                    }
+                }
+            }
+        }
+        if (everything.isEmpty()) {
             item { SpaceEmpty(vm) }
         } else if (query.isNotBlank()) {
             if (shown.isEmpty()) item { Body(stringResource(R.string.space_no_results), Modifier.padding(16.dp)) }
@@ -203,15 +240,17 @@ internal fun SpaceTab(vm: VaultViewModel, pad: PaddingValues) {
                     }
                 }
             }
+            if (all.isEmpty()) item { if (others) OthersEmpty(vm) else SpaceEmpty(vm) }
             val favs = all.filter { it.favorite }
-            val banks = all.filter { !it.favorite && it.type == SpaceType.BANK }
-            val qrs = all.filter { !it.favorite && it.type == SpaceType.QR }
+            // Other people: one alphabetical list of names, whether they gave you a number or a QR.
+            val banks = all.filter { !it.favorite && (others || it.type == SpaceType.BANK) }.let { l -> if (others) l.sortedBy { it.displayName.lowercase() } else l }
+            val qrs = if (others) emptyList() else all.filter { !it.favorite && it.type == SpaceType.QR }
             if (favs.isNotEmpty()) {
                 item { SectionHeader(stringResource(R.string.space_favourites)) }
                 items(favs, key = { it.id }) { e -> BankCard(vm, e, onCopy, { qrFor = e.id }, { shareFor = e.id to ShareMode.NUMBER }, { actionsFor = e.id }) }
             }
             if (banks.isNotEmpty()) {
-                item { SectionHeader(stringResource(R.string.space_bank_accounts)) }
+                item { SectionHeader(stringResource(if (others) R.string.space_people else R.string.space_bank_accounts)) }
                 items(banks, key = { it.id }) { e -> BankCard(vm, e, onCopy, { qrFor = e.id }, { shareFor = e.id to ShareMode.NUMBER }, { actionsFor = e.id }) }
             }
             if (qrs.isNotEmpty()) {
@@ -241,17 +280,44 @@ private fun SpaceEmpty(vm: VaultViewModel) {
     }
 }
 
-/** "+" on the My Space tab: what to add. */
+@Composable
+private fun OthersEmpty(vm: VaultViewModel) {
+    val c = LocalGlassColors.current
+    InsetGroup {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            IconTile(Icons.Filled.People, 46.dp)
+            Text(stringResource(R.string.space_others_empty_title), style = Type.headline, color = c.text)
+            Text(stringResource(R.string.space_others_empty_body), style = Type.callout, color = c.text2)
+            GlassButton(stringResource(R.string.space_add_other_bank), { vm.go(Screen.SpaceEditor(null, SpaceType.BANK, SpaceOwner.OTHER)) }, Modifier.fillMaxWidth(), icon = Icons.Filled.PersonAdd)
+            GlassButton(stringResource(R.string.space_add_other_qr), { vm.go(Screen.SpaceEditor(null, SpaceType.QR, SpaceOwner.OTHER)) }, Modifier.fillMaxWidth(), prominent = false, icon = Icons.Filled.QrCode2)
+        }
+    }
+}
+
+/** "+" on the My Space tab: what to add, yours or someone else's. */
 @Composable
 internal fun SpaceAddSheet(vm: VaultViewModel, visible: Boolean, onDismiss: () -> Unit) {
     val c = LocalGlassColors.current
     GlassSheet(visible = visible, onDismiss = onDismiss) {
         Text(stringResource(R.string.space_add_title), style = Type.headline, color = c.text)
-        InsetGroup {
-            ListRow(stringResource(R.string.space_add_bank), subtitle = stringResource(R.string.space_add_bank_sub), leading = { IconTile(Icons.Filled.AccountBalance) }, onClick = { onDismiss(); vm.go(Screen.SpaceEditor(null, SpaceType.BANK)) })
-            GroupDivider(68.dp)
-            ListRow(stringResource(R.string.space_add_qr_entry), subtitle = stringResource(R.string.space_add_qr_sub), leading = { IconTile(Icons.Filled.QrCode2) }, onClick = { onDismiss(); vm.go(Screen.SpaceEditor(null, SpaceType.QR)) })
+        val mine: @Composable () -> Unit = {
+            SectionHeader(stringResource(R.string.space_owner_mine))
+            InsetGroup {
+                ListRow(stringResource(R.string.space_add_bank), subtitle = stringResource(R.string.space_add_bank_sub), leading = { IconTile(Icons.Filled.AccountBalance) }, onClick = { onDismiss(); vm.spaceSegment = 0; vm.go(Screen.SpaceEditor(null, SpaceType.BANK)) })
+                GroupDivider(68.dp)
+                ListRow(stringResource(R.string.space_add_qr_entry), subtitle = stringResource(R.string.space_add_qr_sub), leading = { IconTile(Icons.Filled.QrCode2) }, onClick = { onDismiss(); vm.spaceSegment = 0; vm.go(Screen.SpaceEditor(null, SpaceType.QR)) })
+            }
         }
+        val theirs: @Composable () -> Unit = {
+            SectionHeader(stringResource(R.string.space_owner_other))
+            InsetGroup {
+                ListRow(stringResource(R.string.space_add_other_bank), subtitle = stringResource(R.string.space_add_other_bank_sub), leading = { IconTile(Icons.Filled.PersonAdd) }, onClick = { onDismiss(); vm.spaceSegment = 1; vm.go(Screen.SpaceEditor(null, SpaceType.BANK, SpaceOwner.OTHER)) })
+                GroupDivider(68.dp)
+                ListRow(stringResource(R.string.space_add_other_qr), subtitle = stringResource(R.string.space_add_other_qr_sub), leading = { IconTile(Icons.Filled.QrCode2) }, onClick = { onDismiss(); vm.spaceSegment = 1; vm.go(Screen.SpaceEditor(null, SpaceType.QR, SpaceOwner.OTHER)) })
+            }
+        }
+        // The group for the list being looked at comes first.
+        if (vm.spaceSegment == 1) { theirs(); mine() } else { mine(); theirs() }
     }
 }
 
@@ -290,7 +356,7 @@ private fun BankCard(
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(e.displayName, style = Type.headline, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                val sub = listOfNotNull(e.bankName?.takeIf { it != e.displayName }, e.holder).joinToString(" · ")
+                val sub = listOfNotNull(e.bankName?.takeIf { it != e.displayName }, e.holder?.takeIf { it != e.displayName }).joinToString(" · ")
                 if (sub.isNotEmpty()) Text(sub, style = Type.footnote, color = c.text2, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             if (e.favorite) Icon(Icons.Filled.Star, null, tint = c.star, modifier = Modifier.size(18.dp))
@@ -443,7 +509,11 @@ internal fun SpaceDetailScreen(vm: VaultViewModel, id: String) {
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
                     Text(e.displayName, style = Type.title, color = c.text, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    val sub = listOfNotNull(e.bankName?.takeIf { it != e.displayName }, accountTypeLabel(e.accountType)).joinToString(" · ")
+                    val sub = listOfNotNull(
+                        if (!e.isMine) stringResource(R.string.space_someone_else) else null,
+                        e.bankName?.takeIf { it != e.displayName },
+                        accountTypeLabel(e.accountType),
+                    ).joinToString(" · ")
                     if (sub.isNotEmpty()) Text(sub, style = Type.callout, color = c.text2)
                 }
             }
@@ -558,7 +628,7 @@ private fun importErrorText(): (SpaceMedia.ImportError.Reason) -> String {
 // ------------------------------------------------------------------ editor
 
 @Composable
-internal fun SpaceEditorScreen(vm: VaultViewModel, id: String?, type: String) {
+internal fun SpaceEditorScreen(vm: VaultViewModel, id: String?, type: String, ownerArg: String = SpaceOwner.ME) {
     val c = LocalGlassColors.current
     val context = LocalContext.current
     val host = LocalOverlayHost.current
@@ -578,6 +648,7 @@ internal fun SpaceEditorScreen(vm: VaultViewModel, id: String?, type: String) {
     var notes by rememberSaveable { mutableStateOf(original?.notes.orEmpty()) }
     var color by rememberSaveable { mutableStateOf(original?.color ?: SpacePalette[(vm.spaceEntries().size) % SpacePalette.size]) }
     var favorite by rememberSaveable { mutableStateOf(original?.favorite ?: false) }
+    var isOther by rememberSaveable { mutableStateOf(original?.let { !it.isMine } ?: (ownerArg == SpaceOwner.OTHER)) }
     var newImage by remember { mutableStateOf<SpaceMedia.Imported?>(null) }
     var removeImage by rememberSaveable { mutableStateOf(false) }
     var importing by remember { mutableStateOf(false) }
@@ -598,7 +669,7 @@ internal fun SpaceEditorScreen(vm: VaultViewModel, id: String?, type: String) {
     val dirty = original == null && (bankId != null || title.isNotBlank() || holder.isNotBlank() || number.isNotBlank() || newImage != null || notes.isNotBlank()) ||
         original != null && (bankName != original.bankName.orEmpty() || title != original.title || holder != original.holder.orEmpty() || normalized != original.accountNumber.orEmpty() ||
             duitNow != original.duitNowId.orEmpty() || accountType != original.accountType || notes != original.notes.orEmpty() || color != original.color ||
-            favorite != original.favorite || newImage != null || removeImage)
+            favorite != original.favorite || newImage != null || removeImage || isOther == original.isMine)
 
     fun close() {
         if (original != null) vm.go(Screen.SpaceDetail(original.id)) else vm.go(Screen.Vault)
@@ -630,8 +701,10 @@ internal fun SpaceEditorScreen(vm: VaultViewModel, id: String?, type: String) {
             notes = notes.trim().ifEmpty { null },
             color = color,
             favorite = favorite,
+            owner = if (isOther) SpaceOwner.OTHER else original?.owner?.takeIf { it == SpaceOwner.ME },
         )
         val savedId = vm.saveSpace(entry, newImage, removeImage = removeImage && newImage == null) ?: return
+        vm.spaceSegment = if (isOther) 1 else 0
         vm.go(Screen.SpaceDetail(savedId))
     }
 
@@ -666,12 +739,25 @@ internal fun SpaceEditorScreen(vm: VaultViewModel, id: String?, type: String) {
                 stringResource(
                     when {
                         original != null -> R.string.space_edit_title
+                        isOther && isBank -> R.string.space_add_other_bank
+                        isOther -> R.string.space_add_other_qr
                         isBank -> R.string.space_add_bank
                         else -> R.string.space_add_qr_entry
                     },
                 ),
                 Modifier.padding(start = 6.dp, bottom = 6.dp),
             )
+            // Whose details: yours, or someone you pay or send to. Switchable at any time.
+            Box(Modifier.fillMaxWidth().height(44.dp).clip(Capsule).background(c.fill)) {
+                FlowingSelector(2, if (isOther) 1 else 0, { isOther = it == 1 }, Modifier.fillMaxSize(), pillColor = c.accent) { i, sel ->
+                    Text(
+                        stringResource(if (i == 0) R.string.space_owner_mine else R.string.space_owner_other),
+                        style = Type.footnote.copy(fontWeight = FontWeight.SemiBold),
+                        color = if (sel) c.onAccent else c.text,
+                        maxLines = 1,
+                    )
+                }
+            }
             ErrorText(error)
             if (isBank) {
                 SectionHeader(stringResource(R.string.space_section_account))
@@ -679,12 +765,19 @@ internal fun SpaceEditorScreen(vm: VaultViewModel, id: String?, type: String) {
                     ValueRow(stringResource(R.string.space_bank), bankName.ifBlank { stringResource(R.string.space_choose_bank) }, Icons.Filled.AccountBalance) { bankSheet = true }
                 }
                 if (bankId == Banks.CUSTOM) GlassTextField(customBank, { customBank = it.take(60) }, stringResource(R.string.space_custom_bank))
-                GlassTextField(title, { title = it.take(60) }, stringResource(R.string.space_nickname))
-                GlassTextField(holder, { holder = it.take(80) }, stringResource(R.string.space_holder))
+                if (isOther) {
+                    // For someone else the name matters most: it is what the list shows.
+                    GlassTextField(holder, { holder = it.take(80) }, stringResource(R.string.space_other_name))
+                    GlassTextField(title, { title = it.take(60) }, stringResource(R.string.space_other_label))
+                } else {
+                    GlassTextField(title, { title = it.take(60) }, stringResource(R.string.space_nickname))
+                    GlassTextField(holder, { holder = it.take(80) }, stringResource(R.string.space_holder))
+                }
                 GlassTextField(number, { number = it.take(40) }, stringResource(R.string.space_account_number), mono = true, keyboard = KeyboardType.Number)
                 if (number.isNotEmpty() && normalized != number) Footnote(stringResource(R.string.space_number_saved_as, normalized), Modifier.padding(horizontal = 16.dp))
             } else {
-                GlassTextField(title, { title = it.take(60) }, stringResource(R.string.space_qr_name))
+                if (isOther) GlassTextField(holder, { holder = it.take(80) }, stringResource(R.string.space_other_name))
+                GlassTextField(title, { title = it.take(60) }, stringResource(if (isOther) R.string.space_other_label else R.string.space_qr_name))
             }
 
             SectionHeader(stringResource(R.string.space_payment_qr))
